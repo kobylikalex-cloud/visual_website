@@ -27,7 +27,7 @@ type CameraStatus = 'idle' | 'loading' | 'active' | 'error'
 
 const MODEL_PATH = '/models/hand_landmarker.task'
 const WASM_PATH = '/mediapipe'
-const TRACKING_INTERVAL_MS = 50
+const TRACKING_INTERVAL_MS = 33 // target up to ~30 observations/s when device allows
 
 type CameraManagerProps = {
   onFrame?: (frame: TrackingFrame) => void
@@ -64,6 +64,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [comparisonRows, setComparisonRows] = useState<ComparisonRow[]>([])
   const [cameraName, setCameraName] = useState('Laptop camera')
+  const [detectorBackend, setDetectorBackend] = useState<'GPU' | 'CPU'>('CPU')
   const [performanceStats, setPerformanceStats] = useState<{ framesPerSecond: number; inferenceMs: number } | null>(null)
   const callbacksRef = useRef({ onFrame, onInactive, onDebugChange })
 
@@ -309,8 +310,8 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
           facingMode: 'user'
         }
       })
@@ -342,26 +343,39 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
 
       if (requestId !== sessionRef.current) return
 
-      const detector = await HandLandmarker.createFromOptions(
-        vision,
-        {
-          baseOptions: {
-            modelAssetPath: MODEL_PATH,
-            delegate: 'CPU'
-          },
-          runningMode: 'VIDEO',
-          numHands: 2,
-          minHandDetectionConfidence: 0.5,
-          minHandPresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5
-        }
-      )
+      // CPU inference on the user's machine was measured at ~130 ms/frame,
+      // blocking React/UI for most of each second. Try GPU first and retain
+      // a working CPU fallback on devices without compatible WebGL.
+      const options = {
+        runningMode: 'VIDEO' as const,
+        numHands: 2,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      }
+      let detector: HandLandmarker
+      let backend: 'GPU' | 'CPU' = 'GPU'
+      try {
+        detector = await HandLandmarker.createFromOptions(vision, {
+          ...options,
+          baseOptions: { modelAssetPath: MODEL_PATH, delegate: 'GPU' },
+        })
+      } catch (gpuError) {
+        // Avoid rendering the whole app unusable if GPU acceleration is unavailable.
+        console.warn('MediaPipe GPU acceleration unavailable; using CPU fallback', gpuError)
+        backend = 'CPU'
+        detector = await HandLandmarker.createFromOptions(vision, {
+          ...options,
+          baseOptions: { modelAssetPath: MODEL_PATH, delegate: 'CPU' },
+        })
+      }
 
       if (requestId !== sessionRef.current) {
         detector.close()
         return
       }
 
+      setDetectorBackend(backend)
       detectorRef.current = detector
 
       setStatus('active')
@@ -518,8 +532,8 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
             }}>
                 <div style={{ fontSize: 12, marginBottom: 7, color: '#93c5fd' }}>
                   {performanceStats
-                    ? `Tracking: ${performanceStats.framesPerSecond} Frames/s · MediaPipe: ${performanceStats.inferenceMs} ms/Frame`
-                    : 'Tracking-Performance wird gemessen…'}
+                    ? `Backend: ${detectorBackend} · Tracking: ${performanceStats.framesPerSecond} Frames/s · MediaPipe: ${performanceStats.inferenceMs} ms/Frame`
+                    : `Backend: ${detectorBackend} · Tracking-Performance wird gemessen…`}
                 </div>
                 {handPoses.length === 0
                 ? 'Keine Hand erkannt'
