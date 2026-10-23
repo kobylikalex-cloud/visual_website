@@ -25,7 +25,7 @@ import {
 
 type CameraStatus = 'idle' | 'loading' | 'active' | 'error'
 type ResultGeometry = {
-  landmarks: { x: number; y: number; z: number }[][]
+  landmarks: { x: number; y: number; z: number; visibility: number }[][]
   worldLandmarks: { x: number; y: number; z: number }[][]
   handedness: { categoryName: string }[][]
 }
