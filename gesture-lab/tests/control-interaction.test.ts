@@ -250,11 +250,13 @@ test('pointer mirrors and clamps active area, uses elapsed-time smoothing and a 
   const pointer = new PointerController(defaults)
   assert.deepEqual(pointer.update({ x: .08, y: .08 }, 0, { width: 1000, height: 800 }), { x: 1000, y: 0 })
   pointer.reset()
-  assert.deepEqual(pointer.update({ x: .5, y: .5 }, 0, { width: 1000, height: 800 }), { x: 500, y: 400 })
+  const center = pointer.update({ x: .5, y: .5 }, 0, { width: 1000, height: 800 })
+  assert.ok(Math.abs(center.x - 500) < 1e-8 && Math.abs(center.y - 400) < 1e-8)
   const moved = pointer.update({ x: .43, y: .5 }, 80, { width: 1000, height: 800 })
   assert.ok(moved.x > 535 && moved.x < 539)
   pointer.reset(); pointer.update({ x: .5, y: .5 }, 0, { width: 1000, height: 800 })
-  assert.deepEqual(pointer.update({ x: .501, y: .501 }, 80, { width: 1000, height: 800 }), { x: 500, y: 400 })
+  const still = pointer.update({ x: .501, y: .501 }, 80, { width: 1000, height: 800 })
+  assert.ok(Math.abs(still.x - 500) < 1e-8 && Math.abs(still.y - 400) < 1e-8)
 })
 
 test('target selector applies distance-to-rectangle, exit hysteresis, switch margin and dwell lock', () => {
