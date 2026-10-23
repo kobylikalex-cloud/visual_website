@@ -39,6 +39,8 @@ export default function App() {
 
   const [controller] = useState(() => new PlaygroundController())
   const [snapshot, setSnapshot] = useState<InteractionSnapshot>(() => controller.cancel())
+  const lastUiPublishRef = useRef(0)
+  const lastUiSnapshotRef = useRef<InteractionSnapshot | null>(null)
 
   useEffect(() => {
     controller.setEffects({ activate: activateDemo, dragBy: moveCard,
@@ -59,7 +61,18 @@ export default function App() {
         rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
         disabled: element.matches(':disabled, [aria-disabled="true"]') }]
     })
-    setSnapshot(controller.update(frame, targets, { width: window.innerWidth, height: window.innerHeight }, performance.now()))
+    const current = performance.now()
+    const next = controller.update(frame, targets, { width: window.innerWidth, height: window.innerHeight }, current)
+    const prior = lastUiSnapshotRef.current
+    // MediaPipe runs at most ~20 Hz. Avoid re-rendering the entire page for
+    // every minor landmark movement; CSS interpolates proximity between UI updates.
+    const stateChanged = !prior || prior.mode !== next.mode ||
+      prior.focusId !== next.focusId || prior.reason !== next.reason
+    if (stateChanged || current - lastUiPublishRef.current >= 100) {
+      lastUiPublishRef.current = current
+      lastUiSnapshotRef.current = next
+      setSnapshot(next)
+    }
   }, [controller, cancel])
 
   useEffect(() => {
