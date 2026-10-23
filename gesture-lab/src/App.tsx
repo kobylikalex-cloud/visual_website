@@ -127,9 +127,9 @@ export default function App() {
       <p>{calibrationMessage}</p>
       <button onClick={centerPointer}>Center pointer reach</button>{' '}
       <button onClick={() => { applyConfig({ ...DEFAULT_GESTURE_CONFIG }); setCalibrationMessage('Default movement restored.') }}>Restore defaults</button>
-      <label>Scroll speed <input type="range" min="250" max="900" step="50" value={config.maxScrollSpeed}
+      <label>Scroll speed <input type="range" min="100" max="900" step="50" value={config.maxScrollSpeed}
         onChange={event => applyConfig({ ...config, maxScrollSpeed: Number(event.target.value) })} /> {config.maxScrollSpeed} px/s</label>
-      <label>Scroll dead zone <input type="range" min="0.02" max="0.09" step="0.005" value={config.scrollDeadZone}
+      <label>Scroll dead zone <input type="range" min="0.02" max="0.20" step="0.005" value={config.scrollDeadZone}
         onChange={event => applyConfig({ ...config, scrollDeadZone: Number(event.target.value) })} /> {(config.scrollDeadZone * 100).toFixed(1)}%</label>
       <p>Actions: {paused ? 'paused' : 'enabled'} · {snapshot.mode} · {snapshot.reason}</p>
       <p>Camera processing and calibration stay in this browser. Evaluation recording pauses all gesture actions. Escape pauses gestures immediately.</p>
