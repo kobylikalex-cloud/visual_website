@@ -1,32 +1,34 @@
-# Gesture Lab — Gesture Playground
+# Gesture Lab — Sprint 01
 
-A local React/TypeScript/MediaPipe prototype for invisible pointing, deliberate full-hand clicks and dragging, and position-controlled scrolling. It uses the existing camera pipeline and bundled local model/WASM assets.
+This sprint enables **one upright open hand for invisible pointing and target highlighting only**. Gesture clicking, grabbing, dragging, scrolling and two-hand control are disconnected. Native mouse, touch and keyboard controls remain available. Camera images, landmarks and measurements stay on this computer.
 
-## Launch on this laptop
+## Run the existing application
 
-Use Node 24 (tested with 24.14.0). Dependencies are already installed in this checkout.
+Node 24.14.0 and existing dependencies are available locally.
 
 ```powershell
 Set-Location -LiteralPath 'C:\Users\kobyl\vision_website\gesture-lab'
 npm run dev -- --host localhost --port 5174 --strictPort
 ```
 
-Open [http://localhost:5174/](http://localhost:5174/). If that server is already running, open the URL directly instead of starting a second copy. After source edits/hot reloads, stop and restart the camera or reload the page before a live test.
+Open [localhost:5174](http://localhost:5174/). If the server is already running, use it directly. After code changes, reload before a camera test. Do not run two camera tabs at once.
 
-1. Click **Start camera** and allow this site's camera access. Use the laptop's built-in camera in the browser device menu. The chosen device name is displayed; this machine exposes it as `USB Camera (3277:00fa)`. No external hardware, account or API key is required.
-2. Hold **one upright open palm** steady, then move it gently. Camera X is mirrored; nearby demo controls glow and gain stable focus. No cursor is drawn.
-3. Once a control is focused, close your **whole hand into a fist** and hold briefly. A button activates once. Over the floating card, a fist grabs; keep it closed to move, open to release. Pinching is not the activation gesture.
-4. Hold **one flat open palm** steady to establish neutral. Move above that position to scroll the journal up, below to scroll down. Return to neutral to stop.
-5. For **two-hand 3× scrolling**, establish two separate flat open palms, then move both in the same direction. Disagreement or a neutral/invalid hand stops the pair. After a hand disappears, hold the remaining hand steady to establish a fresh neutral.
-6. **Escape** or **Pause gestures** stops actions. Resume explicitly. Changing browser focus, losing tracking, camera stop and stale frames also cancel intent.
+1. Keep this tab visible and in the foreground. Start camera; the selected device name appears below the controls.
+2. Raise **one upright open hand**, hold briefly, then move toward the five target buttons. Nearby targets glow. No gesture activates a button.
+3. Remove the hand to disengage. Escape pauses the pointer; Resume pointer explicitly resumes it.
+4. Mouse/keyboard can still activate buttons, move the card and scroll the journal.
 
-Mouse/touch buttons and pointer/arrow-key dragging work without a camera. The journal supports ordinary scrolling and keyboard navigation. All gesture effects are reversible and confined to the demonstration controls and journal pane.
+## Debug, calibration and measurements
 
-## Debug and calibration
+Debug is off initially. Camera, landmarks and the internal interaction point are visible **only** with Debug ON. The debug section below the playground shows raw/confirmed OPEN_UPRIGHT, actual spatial ID, geometry quality, focus/distance, observation age, rendering cadence, processed camera FPS, median/p95 inference/processing/delivery and CSS feedback latency, frame rejection reasons and long tasks.
 
-**Debug** is manually enabled; feed, skeleton, A/B comparison and movement calibration are hidden normally. **Center pointer reach** uses one fresh upright open palm. Scroll speed and neutral dead zone can be adjusted locally; changing settings clears intent.
+Capture a comfortable center with one fresh open upright palm. Increase camera movement range for lower pointer gain. Calibration affects movement only; finger/orientation thresholds are unchanged.
 
-Existing A/B classifiers and optional labeled evaluation remain available. Starting a labeled recording cancels actions immediately and keeps them paused throughout capture. No video is recorded. Landmark samples remain in memory until an explicit local JSON download. Private evidence lives in ignored `.local-evaluation/`.
+With the camera stopped, select **Compare CPU/GPU on identical frames**, then Start camera. The worker tests the same ImageBitmap/timestamp on each available delegate, alternating order, excluding five warmups, measuring twenty pairs. Highlighting pauses during comparison. The delegate with the lower measured p95 remains active. Unavailable delegates are reported. AUTO prefers an available GPU worker but is explicitly unbenchmarked; CPU/GPU can also be selected directly. Unsupported workers use an explicitly reported main-thread fallback outside comparison mode.
+
+Select **Stationary palm** for an automatically bounded ten-second jitter/focus capture. Select Moving for a longer trial; Off resets it. Download local measurement summary saves numeric aggregate results, not video or raw landmarks. The collapsed historical A/B labeling tool remains available separately; its baseline classifications do not describe the active pointer classifier.
+
+Follow [the acceptance protocol and delivery notes](docs/sprint01-delivery.md). Passing synthetic tests is not proof of webcam usability.
 
 ## Checks
 
@@ -36,11 +38,4 @@ npm run build
 npm run lint
 ```
 
-For a production preview without development hot reload:
-
-```powershell
-npm run build
-npm run preview -- --host localhost --port 4175 --strictPort
-```
-
-See [Phase 05 delivery notes](docs/phase05-delivery.md) for architecture, defaults, changed files, validation and limitations. Earlier [architecture audit](docs/architecture-audit.md) and [recognition evaluation](docs/live-recognition-evaluation.md) document the baseline history.
+`npm run preview -- --host localhost --port 4175 --strictPort` serves the built application without hot reload. The browser may require camera permission for that separate origin.

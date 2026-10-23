@@ -17,17 +17,13 @@ export type GesturePlaygroundProps = {
 }
 
 const readingSections = [
-  { title: 'A little less interface. A little more instinct.', category: 'THE IDEA', text: 'The best interactions feel almost invisible. Here, movement becomes an input and the interface quietly responds. Start with something small: aim at a button, notice its response, then close your hand to activate it.' },
-  { title: 'Make room for a different kind of input.', category: '01 / SPACE', text: 'Sit comfortably with a little room around your hands. Keep your whole hand in view, with even light and an uncluttered background. A relaxed, deliberate movement is easier to follow than a quick one.' },
-  { title: 'Let the surface come to you.', category: '02 / ATTENTION', text: 'Hold an open hand upright and move it gently to aim. Nearby controls brighten before you reach them. The response lives on the control itself, so your attention stays on what you are doing.' },
-  { title: 'One small gesture. One clear intention.', category: '03 / ACTIVATE', text: 'Aim at the pulse control with an upright open hand. Close into a fist to activate it. Open your hand again before your next action. The counter keeps a simple record of each activation.' },
-  { title: 'Pick it up. Find a new place.', category: '04 / MOVEMENT', text: 'Bring your attention to the floating card, close your hand, and hold the grasp as you move. Open your hand to release. The card stays inside its space, ready for the next movement.' },
-  { title: 'Reading has its own rhythm.', category: '05 / FLOW', text: 'Turn an open hand into a flat, horizontal position to enter scroll mode. Move above or below the neutral band to travel through this journal. Returning toward the middle slows the movement to a stop.' },
-  { title: 'A faster way through.', category: '06 / MOMENTUM', text: 'Two flat open hands moving in the same direction unlock three times the scrolling speed. It is a useful way to cover more ground. To return to one-hand scrolling, lower both hands first, then raise one flat open hand and hold it steady to establish a fresh neutral position.' },
-  { title: 'A pause is part of the interaction.', category: '07 / STILLNESS', text: 'Press Escape whenever you need to pause gesture interactions. Mouse, touch, and keyboard controls remain available. Nothing here asks you to get every movement right on the first try.' },
-  { title: 'Back to the beginning.', category: '08 / AGAIN', text: 'Try a new color, move the card somewhere unexpected, or reset the playground and begin again. This is a space for curiosity. Small experiments are enough.' },
+  { title: 'One gesture at a time.', category: 'SPRINT 01', text: 'Raise one clearly open upright hand. The nearest eligible target responds to proximity. Only highlighting is active.' },
+  { title: 'A steady place to begin.', category: '01 / HOLD', text: 'Keep the whole palm visible and hold still for ten seconds. In debug mode, record stationary pointer variation and focus interruptions.' },
+  { title: 'Make movement comfortable.', category: '02 / CALIBRATE', text: 'Capture a comfortable center in debug mode and adjust the camera movement range. A larger range lowers pointer gain. Recognition thresholds stay unchanged.' },
+  { title: 'Move between the five targets.', category: '03 / MOVE', text: 'Try slow horizontal and vertical movement, then faster movement. Notice whether feedback follows smoothly and whether focus remains steady.' },
+  { title: 'Disengage safely.', category: '04 / RELEASE', text: 'Remove the hand, briefly occlude it, then return. Stale observations stop movement. A fist, flat palm, unknown pose, or second hand must not click, drag or scroll.' },
+  { title: 'Native input stays available.', category: '05 / INPUT', text: 'Use mouse, touch or keyboard to activate buttons, move the card and read these notes. Escape pauses pointer feedback.' },
 ]
-
 const modeLabels: Record<InteractionSnapshot['mode'], string> = {
   IDLE: 'Standing by', UNCERTAIN: 'Finding your hand', POINTER: 'Ready to aim',
   GRASP_PENDING: 'Hold your grasp', GRABBING: 'Holding an object',
@@ -85,14 +81,14 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
           <span>gesture<span className="brand-light">lab</span><span className="brand-dot">.</span></span>
         </a>
         <div className="header-label"><span className="tiny-orbit" aria-hidden="true" /> An experiment in natural interaction</div>
-        <span className="edition">PLAYGROUND / 01</span>
+        <span className="edition">SPRINT / 01</span>
       </header>
 
       <section className="playground-intro" id="playground" aria-labelledby="playground-title">
         <div className="intro-copy">
           <p className="eyebrow"><span /> BEYOND THE CURSOR</p>
-          <h1 id="playground-title">Less clicking.<br /><span>More feeling.</span></h1>
-          <p className="intro-description">A small space for a new kind of interaction.<br className="desktop-break" /> Move naturally. Watch the interface follow your lead.</p>
+          <h1 id="playground-title">One hand.<br /><span>Steady focus.</span></h1>
+          <p className="intro-description">Raise one upright open hand. Move between the targets.<br className="desktop-break" /> Only highlighting is enabled during this sprint.</p>
         </div>
         <aside className="session-panel" aria-label="Camera and interaction controls">
           <div className="session-heading"><span className="eyebrow">YOUR SESSION</span><span className="session-icon" aria-hidden="true">↗</span></div>
@@ -106,17 +102,25 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
 
       <div className="gesture-primer" aria-label="Gesture quick guide">
         <div><span className="primer-symbol" aria-hidden="true">↗</span><p><strong>Open & upright</strong><span>Aim at a control</span></p></div>
-        <div><span className="primer-symbol primer-grasp" aria-hidden="true">◇</span><p><strong>Close into a fist</strong><span>Activate or grasp</span></p></div>
-        <div><span className="primer-symbol" aria-hidden="true">⇅</span><p><strong>Open & flat</strong><span>Move to scroll · two hands 3×</span></p></div>
+        <div><span className="primer-symbol primer-grasp" aria-hidden="true">◇</span><p><strong>Highlight only</strong><span>Click and grasp disabled</span></p></div>
+        <div><span className="primer-symbol" aria-hidden="true">⇅</span><p><strong>One hand at a time</strong><span>Scroll and two-hand control disabled</span></p></div>
         <p className="escape-hint"><kbd>esc</kbd> to pause</p>
       </div>
 
+      <section className="pointer-test-area" aria-label="Five target pointer acceptance area">
+        <div className="section-heading"><h2>Move between five targets</h2><span>OPEN_UPRIGHT · HIGHLIGHT ONLY</span></div>
+        <div className="pointer-target-grid">{['North west', 'North east', 'Center', 'South west', 'South east'].map((label, index) => {
+          const id = 'test-' + index
+          return <button key={id} className={targetClass(id, 'pointer-test-button pointer-target-' + index)} style={gestureStyle(id)} data-gesture-target={id} data-gesture-kind="click" onClick={() => onActivate(id)}><span>0{index + 1}</span>{label}<small>Mouse / keyboard: send a pulse</small></button>
+        })}</div>
+        <p>Hold an upright open palm to highlight. No gesture activates these buttons. Mouse and keyboard still work.</p>
+      </section>
       <div className="experiment-grid">
         <section className="interaction-experiments" aria-labelledby="interaction-title">
           <div className="section-heading"><h2 id="interaction-title">A space to play</h2><span>01 — INTERACT</span></div>
           <div className="action-panel">
             <div className="action-panel-heading"><div><p className="eyebrow">MAKE A CONNECTION</p><h3>Start with a little pulse.</h3></div><span className="activation-count" aria-live="polite" aria-label={`${activations} activations`}>{String(activations).padStart(2, '0')}<small>activations</small></span></div>
-            <p className="panel-description">Aim with an open hand. Close to activate.</p>
+            <p className="panel-description">Native input playground. Use mouse or keyboard to activate.</p>
             <div className="demo-actions">
               <button className={targetClass('pulse', 'pulse-button')} style={gestureStyle('pulse')} data-gesture-target="pulse" data-gesture-kind="click" onClick={() => onActivate('pulse')}>
                 <span className="pulse-glyph" aria-hidden="true"><i /><i /></span><span>Send a pulse</span><Arrow />
@@ -135,11 +139,11 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
               <button className={`${targetClass('orbit-card', 'orbit-card')}${manualDragging || snapshot.mode === 'GRABBING' && snapshot.focusId === 'orbit-card' ? ' is-dragging' : ''}`} style={{ ...gestureStyle('orbit-card'), transform: `translate(calc(-50% + ${cardPosition.x}px), calc(-50% + ${cardPosition.y}px))` }} data-gesture-target="orbit-card" data-gesture-kind="drag" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={endDrag} onKeyDown={keyboardDrag} aria-label="Orbit card. Drag to move, or use arrow keys. Hold Shift for larger steps." aria-describedby="drag-instructions">
                 <span className="card-topline"><span className="card-orbit-mark" aria-hidden="true" /><span>OBJECT / 001</span><Arrow diagonal /></span>
                 <span className="card-title">Go with<br />the motion.</span>
-                <span className="card-bottom"><span>Grasp. Move. Release.</span><span aria-hidden="true">⠿</span></span>
+                <span className="card-bottom"><span>Mouse or keyboard.</span><span aria-hidden="true">⠿</span></span>
               </button>
               <span className="arena-caption">YOUR LITTLE CORNER OF THE UNIVERSE</span>
             </div>
-            <div className="movement-footer"><p id="drag-instructions">Close your hand to grab. Open to let go.<span>Or drag with a mouse · arrow keys to move</span></p><button className={targetClass('reset', 'reset-button')} style={gestureStyle('reset')} data-gesture-target="reset" data-gesture-kind="click" onClick={() => onActivate('reset')}><span aria-hidden="true">↺</span> Reset</button></div>
+            <div className="movement-footer"><p id="drag-instructions">Mouse and keyboard movement remain available.<span>Or drag with a mouse · arrow keys to move</span></p><button className={targetClass('reset', 'reset-button')} style={gestureStyle('reset')} data-gesture-target="reset" data-gesture-kind="click" onClick={() => onActivate('reset')}><span aria-hidden="true">↺</span> Reset</button></div>
           </div>
         </section>
 
@@ -147,11 +151,11 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
           <div className="section-heading"><h2 id="reading-title">Find your flow</h2><span>02 — EXPLORE</span></div>
           <div className={`reading-panel${snapshot.mode === 'SCROLL' || snapshot.mode === 'SCROLL_FAST' ? ' is-scrolling' : ''}`}>
             <div className="reading-toolbar"><div><span className="reading-live-dot" /> FIELD NOTES</div><span>SCROLL TO DISCOVER <span aria-hidden="true">↓</span></span></div>
-            <div className="reading-viewport" ref={scrollRef} tabIndex={0} role="region" aria-label="Scrollable field notes. Use a flat open hand, mouse wheel, or keyboard to scroll.">
+            <div className="reading-viewport" ref={scrollRef} tabIndex={0} role="region" aria-label="Scrollable field notes. Use mouse wheel or keyboard. Gesture scrolling is disabled.">
               <div className="journal-cover"><span className="journal-edition">THE GESTURE JOURNAL — VOL. 01</span><div className="journal-art" aria-hidden="true"><i /><i /><i /><span /></div><p>Follow your<br /><em>natural instinct.</em></p><div className="journal-cover-bottom"><span>THOUGHTS ON MOVEMENT<br />& THE SPACES IN BETWEEN</span><span aria-hidden="true">↙</span></div></div>
               <div className="journal-content">{readingSections.map((section, index) => <article className="journal-entry" key={section.category}><p className="eyebrow">{section.category}</p><h3>{section.title}</h3><p>{section.text}</p>{index === 3 && <blockquote>“The interface should feel like<br />it is listening.”</blockquote>}</article>)}<p className="journal-end">END OF NOTES <span aria-hidden="true">✳</span> BEGIN AGAIN</p></div>
             </div>
-            <div className="reading-footer"><span aria-hidden="true">⇅</span><span>One flat hand to scroll. Two for 3× speed.</span><span className="reading-speed">{snapshot.mode === 'SCROLL_FAST' ? '3×' : '1×'}</span></div>
+            <div className="reading-footer"><span aria-hidden="true">⇅</span><span>Mouse wheel or keyboard · gesture scrolling disabled</span><span className="reading-speed">{snapshot.mode === 'SCROLL_FAST' ? '3×' : '1×'}</span></div>
           </div>
         </section>
       </div>
