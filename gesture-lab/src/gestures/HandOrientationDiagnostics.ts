@@ -68,3 +68,57 @@ export function getHandOrientationMetrics(
     )
   }
 }
+
+/**
+ * Heuristic classification from this laptop webcam's observed positions.
+ * NOT a gravity reference; future devices will need user calibration.
+ *
+ * In the first recorded test, an upright palm measured ~16° depth
+ * and ~91% facing, versus a horizontal palm measuring 53–61° depth
+ * and ~41–60% facing.
+ */
+export type HandOrientation = 'UPRIGHT_LIKE' | 'FLAT_LIKE' | 'TRANSITION'
+
+export function classifyHandOrientation(
+  metrics: HandOrientationMetrics | null
+): HandOrientation {
+  if (!metrics) return 'TRANSITION'
+
+  const { depthTiltDegrees: depth, palmFacingCameraPercent: facing } = metrics
+
+  if (depth <= 27 && facing >= 70) return 'UPRIGHT_LIKE'
+  if (depth >= 42 && facing <= 75) return 'FLAT_LIKE'
+  return 'TRANSITION'
+}
+
+/** Suppress one-frame changes between camera-relative orientation states. */
+export class HandOrientationStabilizer {
+  private stable: HandOrientation = 'TRANSITION'
+  private candidate: HandOrientation | null = null
+  private candidateSince = 0
+  private readonly confirmationMs: number
+
+  constructor(confirmationMs = 180) {
+    this.confirmationMs = confirmationMs
+  }
+
+  update(raw: HandOrientation, nowMs: number): HandOrientation {
+    if (raw === this.stable) {
+      this.candidate = null
+      return this.stable
+    }
+
+    if (raw !== this.candidate) {
+      this.candidate = raw
+      this.candidateSince = nowMs
+      return this.stable
+    }
+
+    if (nowMs - this.candidateSince >= this.confirmationMs) {
+      this.stable = raw
+      this.candidate = null
+    }
+
+    return this.stable
+  }
+}
