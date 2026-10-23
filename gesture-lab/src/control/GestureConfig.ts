@@ -21,6 +21,7 @@ export const DEFAULT_GESTURE_CONFIG = {
   targetExitRadius: 145,
   targetSwitchMargin: 18,
   targetLockMs: 150,
+  maxClickMotion: 90, // independent of magnetic focus radius
   scrollDeadZone: 0.12,
   scrollRange: 0.20,
   maxScrollSpeed: 200,
