@@ -50,6 +50,8 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<InteractionSnapshot>(() => controller.cancel())
   const lastUiPublishRef = useRef(0)
   const lastUiSnapshotRef = useRef<InteractionSnapshot | null>(null)
+  const lastDiagnosticsRef = useRef(0)
+  const [liveGestureDiagnostics, setLiveGestureDiagnostics] = useState('No tracking sample')
 
   useEffect(() => {
     controller.setEffects({ activate: activateDemo, dragBy: moveCard,
@@ -111,7 +113,14 @@ export default function App() {
       lastUiSnapshotRef.current = next
       setSnapshot(next)
     }
-  }, [controller, cancel, paused])
+    if (debugEnabled && current - lastDiagnosticsRef.current >= 200) {
+      lastDiagnosticsRef.current = current
+      const tracking = controller.getTracking()
+      const hands = tracking.hands.map(hand =>
+        `#${hand.id}: ${hand.pose} / ${hand.orientation} · palm ${(hand.center.x * 100).toFixed(0)}%, ${(hand.center.y * 100).toFixed(0)}%`)
+      setLiveGestureDiagnostics(hands.join(' | ') || tracking.reason)
+    }
+  }, [controller, cancel, paused, debugEnabled])
 
   useEffect(() => {
     let animation = 0
@@ -212,7 +221,23 @@ export default function App() {
       <label>Scroll dead zone <input type="range" min="0.02" max="0.20" step="0.005" value={config.scrollDeadZone}
         onChange={event => applyConfig({ ...config, scrollDeadZone: Number(event.target.value) })} /> {(config.scrollDeadZone * 100).toFixed(1)}%</label>
       <p>Actions: {paused ? 'paused' : 'enabled'} · {snapshot.mode} · {snapshot.reason}</p>
+      <p><strong>ACTUAL CONTROL CLASSIFIER:</strong> {liveGestureDiagnostics}</p>
+      <p><strong>Locked target:</strong> {snapshot.focusId ?? 'none'} · Pointer: {snapshot.pointer
+        ? `${Math.round(snapshot.pointer.x)} × ${Math.round(snapshot.pointer.y)} px`
+        : 'not armed'} · The A/B diagnostic classifiers above do not trigger controls.</p>
       <p>Camera processing and calibration stay in this browser. Evaluation recording pauses all gesture actions. Escape pauses gestures immediately.</p>
     </section>}
+    {debugEnabled && snapshot.pointer && <div aria-hidden="true" style={{
+      position: 'fixed',
+      pointerEvents: 'none',
+      left: snapshot.pointer.x - 10,
+      top: snapshot.pointer.y - 10,
+      width: 20,
+      height: 20,
+      borderRadius: '50%',
+      border: '2px solid #38e8f5',
+      boxShadow: '0 0 14px #38e8f5',
+      zIndex: 99999,
+    }} />}
   </GesturePlayground>
 }
