@@ -47,7 +47,11 @@ export class InteractionEngine {
   // A short noisy hand/orientation frame may pause all actions without
   // discarding target-selection history. It never authorizes clicks/scrolls.
   private pauseUncertain(handId: number, now: number): InteractionSnapshot {
-    if (this.controllingId !== handId || this.grasp) return this.stop('Pose or orientation uncertain')
+    // Only an already dwell-locked target may survive a brief noisy frame.
+    // A focus still in its acquisition window must be discarded to avoid
+    // carrying unconfirmed intent into a later fist transition.
+    if (this.controllingId !== handId || this.grasp ||
+      !this.selector.isLocked(now)) return this.stop('Pose or orientation uncertain')
     if (this.uncertainSince === null) this.uncertainSince = now
     if (now - this.uncertainSince > 150) return this.stop('Pose uncertainty persisted')
     this.armed = false
