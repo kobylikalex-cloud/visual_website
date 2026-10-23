@@ -62,7 +62,7 @@ scope.onmessage = event => {
     // Clone numeric data. No live media and no video frame leave the machine.
     scope.postMessage({
       type: 'result', timestampMs, inferenceMs,
-      landmarks: result.landmarks.map(hand => hand.map(p => ({ x: p.x, y: p.y, z: p.z }))),
+      landmarks: result.landmarks.map(hand => hand.map(p => ({ x: p.x, y: p.y, z: p.z, visibility: p.visibility ?? 1 }))),
       worldLandmarks: result.worldLandmarks.map(hand => hand.map(p => ({ x: p.x, y: p.y, z: p.z }))),
       handedness: result.handedness.map(hand => hand.map(c => ({ categoryName: c.categoryName }))),
     })
