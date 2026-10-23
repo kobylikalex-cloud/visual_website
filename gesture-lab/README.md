@@ -22,7 +22,7 @@ Open [localhost:5174](http://localhost:5174/). If the server is already running,
 
 Debug is off initially. Camera, landmarks and the internal interaction point are visible **only** with Debug ON. The debug section below the playground shows raw/confirmed OPEN_UPRIGHT, actual spatial ID, geometry quality, focus/distance, observation age, rendering cadence, processed camera FPS, median/p95 inference/processing/delivery and CSS feedback latency, frame rejection reasons and long tasks.
 
-Capture a comfortable center with one fresh open upright palm. Increase camera movement range for lower pointer gain. Calibration affects movement only; finger/orientation thresholds are unchanged.
+Capture a comfortable center with one fresh open upright palm. **Pointer movement gain** is independently adjustable from **0.8× to 2.5×**, default **1.6×**, relative to the previous mapping at 1.0×. Increasing gain enlarges displacement about the captured center; the existing smoothing state is retained while tuning. Recentring preserves gain and movement range. Camera movement range remains a separate setting. Calibration affects movement only; finger/orientation thresholds are unchanged.
 
 With the camera stopped, select **Compare CPU/GPU on identical frames**, then Start camera. The worker tests the same ImageBitmap/timestamp on each available delegate, alternating order, excluding five warmups, measuring twenty pairs. Highlighting pauses during comparison. The delegate with the lower measured p95 remains active. Unavailable delegates are reported. AUTO prefers an available GPU worker but is explicitly unbenchmarked; CPU/GPU can also be selected directly. Unsupported workers use an explicitly reported main-thread fallback outside comparison mode.
 

@@ -31,6 +31,12 @@ export class OpenPointerEngine {
   }
 
   configure(config: GestureConfig) {
+    const gainOnly = (Object.keys(this.config) as (keyof GestureConfig)[]).every(key => key === 'pointerGain' || config[key] === this.config[key])
+    if (gainOnly) {
+      this.pointer.setGain(config.pointerGain)
+      this.config = { ...config }
+      return this.snapshot
+    }
     this.config = { ...config }; this.pointer = new PointerController(config); this.selector = new TargetSelector(config)
     return this.cancel('Movement calibration changed')
   }

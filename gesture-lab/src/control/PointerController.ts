@@ -8,14 +8,20 @@ export class PointerController {
   private position: Point2 | null = null
   private timestampMs: number | null = null
 
-  constructor(config: GestureConfig = DEFAULT_GESTURE_CONFIG) { this.config = config }
+  constructor(config: GestureConfig = DEFAULT_GESTURE_CONFIG) { this.config = { ...config }; this.setGain(config.pointerGain) }
+
+  /** Preserve filter position and time when tuning sensitivity during tracking. */
+  setGain(gain: number) {
+    if (!Number.isFinite(gain) || gain < 0.8 || gain > 2.5) throw new RangeError('Pointer gain must be between 0.8 and 2.5')
+    this.config = { ...this.config, pointerGain: gain }
+  }
 
   reset() { this.position = null; this.timestampMs = null }
 
   project(center: Point2, viewport: { width: number; height: number }): Point2 {
     return {
-      x: clamp((1 - center.x - this.config.pointerMinX) / (this.config.pointerMaxX - this.config.pointerMinX)) * viewport.width,
-      y: clamp((center.y - this.config.pointerMinY) / (this.config.pointerMaxY - this.config.pointerMinY)) * viewport.height,
+      x: clamp(0.5 + this.config.pointerGain * ((1 - center.x - this.config.pointerMinX) / (this.config.pointerMaxX - this.config.pointerMinX) - 0.5)) * viewport.width,
+      y: clamp(0.5 + this.config.pointerGain * ((center.y - this.config.pointerMinY) / (this.config.pointerMaxY - this.config.pointerMinY) - 0.5)) * viewport.height,
     }
   }
 

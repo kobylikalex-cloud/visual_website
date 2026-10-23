@@ -247,7 +247,8 @@ test('one upright hand among two cannot silently become a pointer or fist gestur
 })
 
 test('pointer mirrors and clamps active area, uses elapsed-time smoothing and a normalized dead zone', () => {
-  const pointer = new PointerController(defaults)
+  // Unit-gain reference isolates the existing smoothing/dead-zone behavior.
+  const pointer = new PointerController({ ...defaults, pointerGain: 1 })
   assert.deepEqual(pointer.update({ x: .15, y: .15 }, 0, { width: 1000, height: 800 }), { x: 1000, y: 0 })
   pointer.reset()
   assert.deepEqual(pointer.update({ x: .5, y: .5 }, 0, { width: 1000, height: 800 }), { x: 500, y: 400 })

@@ -13,6 +13,7 @@ export const DEFAULT_GESTURE_CONFIG = {
   crossingDistance: 0.12,
   pointerSmoothingMs: 140,
   pointerDeadZone: 0.007,
+  pointerGain: 1.6,
   pointerMinX: 0.15,
   pointerMaxX: 0.85,
   pointerMinY: 0.15,

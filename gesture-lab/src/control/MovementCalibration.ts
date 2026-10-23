@@ -6,11 +6,12 @@ const clamp = (value: number, low: number, high: number) => Math.max(low, Math.m
 /** Shift the active area around a measured palm center; recognition thresholds stay fixed. */
 export function calibratePointer(center: Point2, config: GestureConfig): GestureConfig {
   if (!Number.isFinite(center.x) || !Number.isFinite(center.y)) return { ...config }
-  const x = clamp(1 - center.x, 0.05, 0.95)
-  const y = clamp(center.y, 0.05, 0.95)
-  // Preserve the measured center by narrowing an off-center range to fit the image.
-  const width = Math.min(config.pointerMaxX - config.pointerMinX, 2 * x, 2 * (1 - x))
-  const height = Math.min(config.pointerMaxY - config.pointerMinY, 2 * y, 2 * (1 - y))
+  const x = clamp(1 - center.x, 0, 1)
+  const y = clamp(center.y, 0, 1)
+  // Recenter without changing sensitivity. The logical mapping range may extend
+  // beyond the camera image; PointerController clamps the final screen output.
+  const width = config.pointerMaxX - config.pointerMinX
+  const height = config.pointerMaxY - config.pointerMinY
   return { ...config, pointerMinX: x - width / 2, pointerMaxX: x + width / 2,
     pointerMinY: y - height / 2, pointerMaxY: y + height / 2 }
 }

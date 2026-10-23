@@ -131,10 +131,12 @@ export default function App() {
       <section className="movement-settings" aria-label="Pointer calibration">
         <h2>Comfortable movement</h2><p>{calibrationMessage}</p>
         <button onClick={centerPointer}>Capture comfortable center</button>{' '}<button onClick={() => { applyConfig({ ...DEFAULT_GESTURE_CONFIG }); setRange(.70) }}>Restore defaults</button>
+        <label>Pointer movement gain <input aria-label="Pointer movement gain" type="range" min="0.8" max="2.5" step="0.1" value={config.pointerGain}
+          onChange={event => applyConfig({ ...config, pointerGain: Number(event.target.value) })} /> {config.pointerGain.toFixed(1)}×</label>
         <label>Camera movement range <input type="range" min="0.30" max="0.90" step="0.05" value={range} onChange={event => {
           const size = Number(event.target.value); setRange(size)
           const cx = (config.pointerMinX + config.pointerMaxX) / 2, cy = (config.pointerMinY + config.pointerMaxY) / 2
-          const halfX = Math.min(size / 2, cx, 1 - cx), halfY = Math.min(size / 2, cy, 1 - cy)
+          const halfX = size / 2, halfY = size / 2
           applyConfig({ ...config, pointerMinX: cx - halfX, pointerMaxX: cx + halfX, pointerMinY: cy - halfY, pointerMaxY: cy + halfY })
         }} /> {(range * 100).toFixed(0)}% (larger = lower movement gain)</label>
         <label>Acceptance measurement <select aria-label="Acceptance measurement" value={measurement} onChange={event => {
