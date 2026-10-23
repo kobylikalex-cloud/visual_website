@@ -140,6 +140,19 @@ test('recognizes observed open and flat bands without a DIP hard veto', () => {
   assert.deepEqual(recognizeControlHand(flat), { pose: 'OPEN', orientation: 'FLAT_LIKE' })
 })
 
+test('tolerates one unclear finger but rejects a genuinely folded contradictory finger', () => {
+  const relaxed = world(165, 150)
+  relaxed.splice(5, 4, ...world(90, 180).slice(5, 9))
+  assert.equal(recognizeControlHand(relaxed).pose, 'OPEN')
+  const contradictory = world(165, 150)
+  contradictory.splice(5, 4, ...world(90, 127, [0.03, 0.012, 0.03]).slice(5, 9))
+  assert.equal(recognizeControlHand(contradictory).pose, 'UNKNOWN')
+
+  const nearlyClosed = world(90, 127, [0.03, 0.012, 0.03])
+  nearlyClosed.splice(5, 4, ...world(90, 180).slice(5, 9))
+  assert.equal(recognizeControlHand(nearlyClosed).pose, 'FIST')
+})
+
 test('recognizes all-four short bent fingers as a fist despite DIP 127–128', () => {
   for (const [pip, dip] of [[77, 128], [90, 127]]) {
     const points = world(pip, dip, [0.03, 0.012, 0.03])
