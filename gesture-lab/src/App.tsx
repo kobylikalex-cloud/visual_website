@@ -42,7 +42,9 @@ export default function App() {
 
   useEffect(() => {
     controller.setEffects({ activate: activateDemo, dragBy: moveCard,
-      scrollBy: deltaY => scrollRef.current?.scrollBy({ top: deltaY, behavior: 'instant' }) })
+      // Gesture scrolling navigates the webpage, not only the small journal.
+      // The journal itself remains independently mouse/keyboard-scrollable.
+      scrollBy: deltaY => window.scrollBy({ top: deltaY, behavior: 'instant' }) })
   }, [controller, activateDemo, moveCard])
 
   const cancel = useCallback(() => setSnapshot(controller.cancel()), [controller])
