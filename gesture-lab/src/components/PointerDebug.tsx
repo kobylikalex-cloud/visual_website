@@ -3,24 +3,28 @@ import type { InteractionSnapshot } from '../control/types'
 import type { PointerMeasurement } from '../evaluation/PointerMeasurement'
 import type { PerformanceReport } from '../tracking/TrackingPerformance'
 import type { BenchmarkReport } from '../tracking/protocol'
+import type { ClickDiagnostics } from '../control/FistClickEngine'
 
 const number = (value: number | null | undefined) => value == null ? 'unavailable' : value.toFixed(1)
 
-export default function PointerDebug({ diagnostics: d, snapshot, perf, backend, benchmark, measurement: m, feedback }: {
-  diagnostics: PointerDiagnostics; snapshot: InteractionSnapshot; perf: PerformanceReport | null; backend: string; benchmark: BenchmarkReport | null; measurement: PointerMeasurement; feedback: { median: number | null; p95: number | null }
+export default function PointerDebug({ diagnostics: d, click, snapshot, perf, backend, benchmark, measurement: m, feedback }: {
+  diagnostics: PointerDiagnostics; click: ClickDiagnostics; snapshot: InteractionSnapshot; perf: PerformanceReport | null; backend: string; benchmark: BenchmarkReport | null; measurement: PointerMeasurement; feedback: { median: number | null; p95: number | null }
 }) {
   const center = m.points.reduce((sum, p) => ({ x: sum.x + p.x / m.points.length, y: sum.y + p.y / m.points.length }), { x: 0, y: 0 })
   const rms = m.points.length ? Math.sqrt(m.points.reduce((sum, p) => sum + (p.x - center.x) ** 2 + (p.y - center.y) ** 2, 0) / m.points.length) : null
   function download() {
-    const blob = new Blob([JSON.stringify({ build: __GESTURE_BUILD__, backend, performance: perf, benchmark, pointer: d, softwareFeedbackMs: feedback,
+    const blob = new Blob([JSON.stringify({ build: __GESTURE_BUILD__, backend, performance: perf, benchmark, pointer: d, click, softwareFeedbackMs: feedback,
       measurement: { mode: m.mode, samples: m.points.length, frames: m.frames, interruptions: m.interruptions, focusChanges: m.switches, stationaryRmsPx: m.mode === 'stationary' ? rms : null },
       note: 'Local numeric summary only. Capture-to-feedback is a software estimate, not physical camera-to-photon latency.' }, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob), link = document.createElement('a')
-    link.href = url; link.download = 'gesture-sprint01-measurements.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+    link.href = url; link.download = 'gesture-sprint02-measurements.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
   return <section className="movement-settings pointer-debug" data-pointer-debug aria-label="Pointer recognition and performance">
     <div id="debug-interaction-point" aria-hidden="true" />
-    <h2>OPEN_UPRIGHT · developer observation</h2>
+    <h2>Pointer + fist click · developer observation</h2>
+    <p>Actual pose: <strong>{click.pose}</strong> · gesture state: <strong>{click.state}</strong> · target locked: {String(click.targetLocked)} · locked ID: {click.lockedTargetId ?? 'none'}</p>
+    <p>Fist confirmation: {(click.progress * 100).toFixed(0)}% · valid clicks: {click.validClicks} · rejected attempts: {click.rejectedAttempts}</p>
+    <p>Last cancellation: {click.lastCancellation || 'none'} · last observed fist confirmation: {number(click.lastConfirmationMs)} ms · first fist capture to registered activation: {number(click.lastGestureLatencyMs)} ms</p>
     <p>Build: {__GESTURE_BUILD__.branch} · {__GESTURE_BUILD__.commit.slice(0, 7)}{__GESTURE_BUILD__.dirty ? ' + local changes' : ''}</p>
     <p>Raw: <strong>{d.raw}</strong> · confirmed: <strong>{String(d.confirmed)}</strong> · spatial hand ID: {d.handId ?? 'none'}</p>
     <p>Quality: {d.quality} · observation age: {number(d.observationAgeMs)} ms. Geometry validity is not a calibrated confidence probability.</p>

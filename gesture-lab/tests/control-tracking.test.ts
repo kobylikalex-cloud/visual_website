@@ -178,7 +178,8 @@ test('tolerates one unclear finger but rejects a genuinely folded contradictory 
 
   const nearlyClosed = world(90, 127, [0.03, 0.012, 0.03])
   nearlyClosed.splice(5, 4, ...world(90, 180).slice(5, 9))
-  assert.equal(recognizeControlHand(nearlyClosed).pose, 'FIST')
+  // Sprint 02 activation requires evidence from all four fingers.
+  assert.equal(recognizeControlHand(nearlyClosed).pose, 'UNKNOWN')
 })
 
 test('recognizes all-four short bent fingers as a fist despite DIP 127–128', () => {

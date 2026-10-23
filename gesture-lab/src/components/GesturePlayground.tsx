@@ -1,13 +1,15 @@
 import { useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react'
 import type { InteractionSnapshot } from '../control/types'
+import type { ClickState } from '../control/FistClickEngine'
 import './playground.css'
 
 export type GesturePlaygroundProps = {
   cameraControls: ReactNode
-  snapshot: InteractionSnapshot
+  snapshot: InteractionSnapshot & { clickState?: ClickState }
   cardPosition: { x: number; y: number }
   activations: number
+  buttonActivations: Record<string, number>
   palette: 'violet' | 'mint' | 'amber'
   onActivate: (id: string) => void
   onManualDrag: (delta: { x: number; y: number }) => void
@@ -17,11 +19,11 @@ export type GesturePlaygroundProps = {
 }
 
 const readingSections = [
-  { title: 'One gesture at a time.', category: 'SPRINT 01', text: 'Raise one clearly open upright hand. The nearest eligible target responds to proximity. Only highlighting is active.' },
+  { title: 'One gesture at a time.', category: 'SPRINT 01', text: 'Raise one clearly open upright hand. The nearest eligible target responds to proximity. A complete fist activates the locked test button once; confirmed reopening enables the next click.' },
   { title: 'A steady place to begin.', category: '01 / HOLD', text: 'Keep the whole palm visible and hold still for ten seconds. In debug mode, record stationary pointer variation and focus interruptions.' },
   { title: 'Make movement comfortable.', category: '02 / CALIBRATE', text: 'Capture a comfortable center in debug mode and adjust the camera movement range. A larger range lowers pointer gain. Recognition thresholds stay unchanged.' },
   { title: 'Move between the five targets.', category: '03 / MOVE', text: 'Try slow horizontal and vertical movement, then faster movement. Notice whether feedback follows smoothly and whether focus remains steady.' },
-  { title: 'Disengage safely.', category: '04 / RELEASE', text: 'Remove the hand, briefly occlude it, then return. Stale observations stop movement. A fist, flat palm, unknown pose, or second hand must not click, drag or scroll.' },
+  { title: 'Disengage safely.', category: '04 / RELEASE', text: 'Remove the hand, briefly occlude it, then return. Stale observations stop movement. Partial closure, unknown pose, a flat palm or a second hand must not activate anything. Dragging and gesture scrolling remain disabled.' },
   { title: 'Native input stays available.', category: '05 / INPUT', text: 'Use mouse, touch or keyboard to activate buttons, move the card and read these notes. Escape pauses pointer feedback.' },
 ]
 const modeLabels: Record<InteractionSnapshot['mode'], string> = {
@@ -34,12 +36,14 @@ function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d={diagonal ? 'M6 18 18 6M6 6h12v12' : 'M5 12h14m-6-6 6 6-6 6'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
 }
 
-export default function GesturePlayground({ cameraControls, snapshot, cardPosition, activations, palette, onActivate, onManualDrag, scrollRef, arenaRef, children }: GesturePlaygroundProps) {
+export default function GesturePlayground({ cameraControls, snapshot, cardPosition, activations, buttonActivations, palette, onActivate, onManualDrag, scrollRef, arenaRef, children }: GesturePlaygroundProps) {
   const dragPoint = useRef<{ id: number; x: number; y: number } | null>(null)
   const [manualDragging, setManualDragging] = useState(false)
   const statusReason = snapshot.mode === 'IDLE' && snapshot.reason === 'Reset'
     ? 'Start camera to begin.'
     : snapshot.reason || 'Start camera to begin.'
+  const clickLabels: Partial<Record<ClickState, string>> = { TARGET_FOCUSED: 'Ready to activate', FIST_TRANSITION: 'Confirming fist', FIST_CONFIRMED: 'Fist confirmed', CLICK: 'Activated', WAIT_FOR_RELEASE: 'Open your hand to release' }
+  const statusLabel = snapshot.clickState && clickLabels[snapshot.clickState] || modeLabels[snapshot.mode]
   const gestureStyle = (id: string): CSSProperties => ({ '--proximity': Math.max(0, Math.min(1, snapshot.proximity[id] ?? 0)) } as CSSProperties)
   const targetClass = (id: string, base: string) => `${base} gesture-target${snapshot.focusId === id ? ' is-focused' : ''}`
 
@@ -81,39 +85,39 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
           <span>gesture<span className="brand-light">lab</span><span className="brand-dot">.</span></span>
         </a>
         <div className="header-label"><span className="tiny-orbit" aria-hidden="true" /> An experiment in natural interaction</div>
-        <span className="edition">SPRINT / 01</span>
+        <span className="edition">SPRINT / 02</span>
       </header>
 
       <section className="playground-intro" id="playground" aria-labelledby="playground-title">
         <div className="intro-copy">
           <p className="eyebrow"><span /> BEYOND THE CURSOR</p>
           <h1 id="playground-title">One hand.<br /><span>Steady focus.</span></h1>
-          <p className="intro-description">Raise one upright open hand. Move between the targets.<br className="desktop-break" /> Only highlighting is enabled during this sprint.</p>
+          <p className="intro-description">Raise one upright open hand. Move between the targets.<br className="desktop-break" /> Hold a complete fist to activate. Reopen to repeat.</p>
         </div>
         <aside className="session-panel" aria-label="Camera and interaction controls">
           <div className="session-heading"><span className="eyebrow">YOUR SESSION</span><span className="session-icon" aria-hidden="true">↗</span></div>
           <div className="camera-controls">{cameraControls}</div>
           <div className="interaction-status" role="status" aria-live="polite" aria-atomic="true" title={snapshot.reason}>
             <span className={`status-dot${snapshot.mode !== 'IDLE' && snapshot.mode !== 'UNCERTAIN' ? ' is-active' : ''}`} />
-            <span>{modeLabels[snapshot.mode]}<small>{statusReason}</small></span>
+            <span>{statusLabel}<small>{statusReason}</small></span>
           </div>
         </aside>
       </section>
 
       <div className="gesture-primer" aria-label="Gesture quick guide">
         <div><span className="primer-symbol" aria-hidden="true">↗</span><p><strong>Open & upright</strong><span>Aim at a control</span></p></div>
-        <div><span className="primer-symbol primer-grasp" aria-hidden="true">◇</span><p><strong>Highlight only</strong><span>Click and grasp disabled</span></p></div>
+        <div><span className="primer-symbol primer-grasp" aria-hidden="true">◇</span><p><strong>Close to activate</strong><span>Hold a fist · reopen to repeat</span></p></div>
         <div><span className="primer-symbol" aria-hidden="true">⇅</span><p><strong>One hand at a time</strong><span>Scroll and two-hand control disabled</span></p></div>
         <p className="escape-hint"><kbd>esc</kbd> to pause</p>
       </div>
 
       <section className="pointer-test-area" aria-label="Five target pointer acceptance area">
-        <div className="section-heading"><h2>Move between five targets</h2><span>OPEN_UPRIGHT · HIGHLIGHT ONLY</span></div>
+        <div className="section-heading"><h2>Move between five targets</h2><span>OPEN → FIST → CLICK</span></div>
         <div className="pointer-target-grid">{['North west', 'North east', 'Center', 'South west', 'South east'].map((label, index) => {
           const id = 'test-' + index
-          return <button key={id} className={targetClass(id, 'pointer-test-button pointer-target-' + index)} style={gestureStyle(id)} data-gesture-target={id} data-gesture-kind="click" onClick={() => onActivate(id)}><span>0{index + 1}</span>{label}<small>Mouse / keyboard: send a pulse</small></button>
+          return <button key={id} className={targetClass(id, 'pointer-test-button pointer-target-' + index)} style={gestureStyle(id)} data-gesture-target={id} data-gesture-kind="click" onClick={() => onActivate(id)}><span>0{index + 1}</span>{label}<small>{buttonActivations[id] ?? 0} activations · mouse / keyboard welcome</small>{(buttonActivations[id] ?? 0) > 0 && <span key={buttonActivations[id]} className="activation-flash" aria-hidden="true" />}</button>
         })}</div>
-        <p>Hold an upright open palm to highlight. No gesture activates these buttons. Mouse and keyboard still work.</p>
+        <p>Aim with an upright open palm. Let the target settle, close a complete fist, then reopen. Each button shows its activation count.</p>
       </section>
       <div className="experiment-grid">
         <section className="interaction-experiments" aria-labelledby="interaction-title">

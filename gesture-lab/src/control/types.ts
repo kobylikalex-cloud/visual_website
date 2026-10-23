@@ -14,7 +14,7 @@ export type TrackedHand = {
 }
 export type TrackingResult = { hands: TrackedHand[]; ambiguous: boolean; reason: string }
 export type Rect = { left: number; top: number; width: number; height: number }
-export type InteractionTarget = { id: string; kind: 'click' | 'drag'; rect: Rect; disabled?: boolean }
+export type InteractionTarget = { id: string; kind: 'click' | 'drag'; rect: Rect; disabled?: boolean; activationToken?: number }
 export type InteractionMode = 'IDLE' | 'UNCERTAIN' | 'POINTER' | 'GRASP_PENDING' | 'GRABBING' | 'SCROLL' | 'SCROLL_FAST'
 export type InteractionSnapshot = {
   mode: InteractionMode

@@ -218,3 +218,12 @@ kbd { border: 1px solid #ffffff17; border-radius: 4px; padding: 3px 5px; font: 9
 @media (min-width: 761px) { body:has(.camera-manager[data-debug="true"]) .pointer-test-area { margin-right: 320px; } }
 .camera-manager select, .movement-settings select { max-width: 100%; padding: 8px; color: #ede8fa; background: #211b2b; border: 1px solid #4c455d; border-radius: 6px; }
 @media (max-width: 760px) { .pointer-target-grid { grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 90px); gap: 12px; }.pointer-target-0 { grid-area: 1 / 1; }.pointer-target-1 { grid-area: 1 / 2; }.pointer-target-2 { grid-area: 2 / 1 / 3 / 3; }.pointer-target-3 { grid-area: 3 / 1; }.pointer-target-4 { grid-area: 3 / 2; }.camera-manager[data-debug="true"] > div:first-child { width: 190px; } }
+
+/* Sprint 02: restrained, target-local confirmation and activation feedback. */
+.gesture-target.is-ready { border-color: rgba(var(--accent-rgb), .85); }
+.pointer-test-button { overflow: hidden; }
+.pointer-test-button.is-confirming { border-color: #b4a2ff; box-shadow: inset 0 -3px 0 #b4a2ff; }
+.pointer-test-button.is-confirming::before { content: ''; position: absolute; inset: 0; background: rgba(180,162,255,.13); transform: scaleX(var(--fist-progress, 0)); transform-origin: left; pointer-events: none; }
+.pointer-test-button > .activation-flash { position: absolute; inset: 0; border-radius: inherit; background: #b4f2dc; pointer-events: none; animation: activation-flash .36s ease-out both; }
+@keyframes activation-flash { from { opacity: .5; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pointer-test-button > .activation-flash { animation: none; opacity: 0; } }

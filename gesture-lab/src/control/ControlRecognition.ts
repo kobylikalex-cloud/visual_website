@@ -5,7 +5,7 @@ import { classifyHandOrientation, getHandOrientationMetrics } from '../gestures/
 import { getFingerFeatures } from '../gestures/FingerGeometry.ts'
 
 /** Control-only interpretation; the original A/B classifiers remain unchanged.
- * Reuse observed PIP/reach bands, requiring 3/4 agreement without contradictory fingers.
+ * Keep OPEN's guarded 3/4 agreement; click-capable FIST requires all four fingers.
  * DIP is measured for validity, but is not a hard veto: recorded fists had DIP 127–128°.
  */
 export function recognizeControlHand(worldLandmarks: Point3D[]): { pose: HandPose; orientation: HandOrientation } {
@@ -22,7 +22,7 @@ export function recognizeControlHand(worldLandmarks: Point3D[]): { pose: HandPos
     angle <= 135 && reach <= 58).length
   return {
     pose: extended >= 3 && curled === 0 ? 'OPEN'
-      : curled >= 3 && extended === 0 ? 'FIST'
+      : curled === 4 && extended === 0 ? 'FIST'
       : 'UNKNOWN',
     orientation: classifyHandOrientation(metrics),
   }

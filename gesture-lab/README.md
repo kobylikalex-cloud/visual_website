@@ -1,6 +1,6 @@
-# Gesture Lab — Sprint 01
+# Gesture Lab — Sprint 02
 
-This sprint enables **one upright open hand for invisible pointing and target highlighting only**. Gesture clicking, grabbing, dragging, scrolling and two-hand control are disconnected. Native mouse, touch and keyboard controls remain available. Camera images, landmarks and measurements stay on this computer.
+This sprint adds **a complete fist to activate the previously focused test button once** to the established upright-open pointer. Reopen the hand before another click. Only the five test buttons have registered gesture actions. Gesture grabbing, dragging, scrolling and two-hand control remain disconnected. Native mouse, touch and keyboard controls remain available. Camera images, landmarks and measurements stay on this computer.
 
 ## Run the existing application
 
@@ -14,7 +14,7 @@ npm run dev -- --host localhost --port 5174 --strictPort
 Open [localhost:5174](http://localhost:5174/). If the server is already running, use it directly. After code changes, reload before a camera test. Do not run two camera tabs at once.
 
 1. Keep this tab visible and in the foreground. Start camera; the selected device name appears below the controls.
-2. Raise **one upright open hand**, hold briefly, then move toward the five target buttons. Nearby targets glow. No gesture activates a button.
+2. Raise **one upright open hand**, hold briefly, then move toward the five target buttons. Let one target settle, close all four non-thumb fingers into a fist and hold for approximately 200 ms. The locked button pulses and its count increments once. Hold closed: nothing repeats. Reopen upright, then select again.
 3. Remove the hand to disengage. Escape pauses the pointer; Resume pointer explicitly resumes it.
 4. Mouse/keyboard can still activate buttons, move the card and scroll the journal.
 
@@ -28,7 +28,9 @@ With the camera stopped, select **Compare CPU/GPU on identical frames**, then St
 
 Select **Stationary palm** for an automatically bounded ten-second jitter/focus capture. Select Moving for a longer trial; Off resets it. Download local measurement summary saves numeric aggregate results, not video or raw landmarks. The collapsed historical A/B labeling tool remains available separately; its baseline classifications do not describe the active pointer classifier.
 
-Follow [the acceptance protocol and delivery notes](docs/sprint01-delivery.md). Passing synthetic tests is not proof of webcam usability.
+Debug also shows actual OPEN/FIST/UNKNOWN, click state, spatial identity, locked target, fist progress, successful gesture clicks, rejected attempts, last cancellation and observed fist-to-action latency. Per-button counters include native and gesture activations; the debug valid-click count includes only registered gesture activations.
+
+Follow [the Sprint 02 acceptance protocol and delivery notes](docs/sprint02-delivery.md). Passing synthetic tests is not proof of webcam usability. The existing [Sprint 01 report](docs/sprint01-delivery.md) is historical performance evidence, not a current before/after webcam comparison.
 
 ## Checks
 
