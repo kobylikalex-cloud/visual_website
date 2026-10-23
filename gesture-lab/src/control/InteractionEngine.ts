@@ -29,6 +29,7 @@ export class InteractionEngine {
   private grasp: Grasp | null = null
   private focusId: string | null = null
   private closingBridge: ClosingBridge | null = null
+  private uncertainSince: number | null = null
 
   constructor(config: GestureConfig = DEFAULT_GESTURE_CONFIG) {
     this.config = { ...config }
@@ -40,7 +41,22 @@ export class InteractionEngine {
   private clearIntent() {
     this.pointer.reset(); this.selector.reset(); this.scroll.reset()
     this.controllingId = null; this.openSince = null; this.lastOpenPoint = null; this.armed = false; this.grasp = null
-    this.focusId = null; this.closingBridge = null
+    this.focusId = null; this.closingBridge = null; this.uncertainSince = null
+  }
+
+  // A short noisy hand/orientation frame may pause all actions without
+  // discarding target-selection history. It never authorizes clicks/scrolls.
+  private pauseUncertain(handId: number, now: number): InteractionSnapshot {
+    if (this.controllingId !== handId || this.grasp) return this.stop('Pose or orientation uncertain')
+    if (this.uncertainSince === null) this.uncertainSince = now
+    if (now - this.uncertainSince > 150) return this.stop('Pose uncertainty persisted')
+    this.armed = false
+    this.openSince = null
+    this.lastOpenPoint = null
+    this.closingBridge = null
+    this.scroll.reset()
+    this.snapshot = { ...empty('Reconfirming hand gesture'), focusId: this.focusId }
+    return this.snapshot
   }
 
   private stop(reason: string, mode: InteractionSnapshot['mode'] = 'UNCERTAIN'): InteractionSnapshot {
@@ -96,12 +112,20 @@ export class InteractionEngine {
     if (!frame.hands.length) return this.stop('No hands', 'IDLE')
     // Recognition remains UNKNOWN through finger dead bands. A previously armed
     // target can wait briefly, but UNKNOWN itself never produces an effect.
-    if (this.closingBridge && frame.hands.some(hand => hand.pose === 'OPEN')) this.clearIntent()
+    if (this.closingBridge && frame.hands.some(hand => hand.pose === 'OPEN')) {
+      // No fist materialized: do not erase the stable target unnecessarily.
+      // Disarm and require a new continuous OPEN confirmation before actions.
+      this.closingBridge = null
+      this.armed = false
+      this.openSince = null
+      this.lastOpenPoint = null
+      this.uncertainSince = null
+    }
     if (frame.hands.some(hand => hand.pose === 'UNKNOWN')) {
       const hand = frame.hands[0]
       if (frame.hands.length !== 1 || hand.orientation !== 'UPRIGHT_LIKE' || this.grasp) return this.stop('Pose or orientation uncertain')
       if (!this.closingBridge) {
-        if (!this.armed || this.controllingId !== hand.id || !this.selector.isLocked(now) || !this.lastOpenPoint) return this.stop('Pose or orientation uncertain')
+        if (!this.armed || this.controllingId !== hand.id || !this.selector.isLocked(now) || !this.lastOpenPoint) return this.pauseUncertain(hand.id, now)
         const target = frame.targets.find(target => target.id === this.focusId && !target.disabled)
         if (!target) return this.stop('Closing target unavailable')
         this.closingBridge = { handId: hand.id, targetId: target.id, kind: target.kind, origin: { ...this.lastOpenPoint }, deadlineMs: now + this.config.closingTransitionMs }
@@ -116,7 +140,11 @@ export class InteractionEngine {
       this.snapshot = { ...empty('Waiting for confirmed fist', 'GRASP_PENDING'), focusId: bridge.targetId }
       return this.snapshot
     }
-    if (frame.hands.some(hand => hand.pose === 'OPEN' && hand.orientation === 'TRANSITION')) return this.stop('Pose or orientation uncertain')
+    if (frame.hands.some(hand => hand.pose === 'OPEN' && hand.orientation === 'TRANSITION')) {
+      return frame.hands.length === 1
+        ? this.pauseUncertain(frame.hands[0].id, now)
+        : this.stop('Pose or orientation uncertain')
+    }
     if (this.closingBridge) {
       const bridge = this.closingBridge
       const hand = frame.hands[0]
@@ -145,9 +173,13 @@ export class InteractionEngine {
 
     if (hand.pose === 'OPEN' && hand.orientation === 'UPRIGHT_LIKE') {
       if (this.grasp) this.clearIntent()
+      this.uncertainSince = null
       this.controllingId = hand.id
       if (this.openSince === null) this.openSince = now
-      if (now - this.openSince < this.config.confirmationMs) return this.snapshot
+      if (now - this.openSince < this.config.confirmationMs) {
+        this.snapshot = { ...this.snapshot, focusId: this.focusId }
+        return this.snapshot
+      }
       this.armed = true
       const pointer = this.pointer.update(hand.center, now, frame.viewport)
       this.lastOpenPoint = this.pointer.project(hand.center, frame.viewport)
