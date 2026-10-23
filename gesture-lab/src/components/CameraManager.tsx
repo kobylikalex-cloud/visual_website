@@ -14,6 +14,10 @@ import {
   type HandOrientation,
   type HandOrientationMetrics
 } from '../gestures/HandOrientationDiagnostics'
+import {
+  getFingerExtensionReadings,
+  type FingerExtensionReading
+} from '../gestures/FingerExtensionDiagnostics'
 
 type CameraStatus = 'idle' | 'loading' | 'active' | 'error'
 
@@ -43,6 +47,7 @@ export default function CameraManager() {
   const [handPoses, setHandPoses] = useState<HandPose[]>([])
   const [orientationMetrics, setOrientationMetrics] = useState<(HandOrientationMetrics | null)[]>([])
   const [orientations, setOrientations] = useState<HandOrientation[]>([])
+  const [fingerReadings, setFingerReadings] = useState<FingerExtensionReading[][]>([])
   const [debugEnabled, setDebugEnabled] = useState(true)
 
   // Stop camera, inference loop and MediaPipe resources.
@@ -163,6 +168,7 @@ export default function CameraManager() {
         // Camera-relative telemetry, shown only in the debug overlay.
         if (debugRef.current) {
           setOrientationMetrics(readings)
+          setFingerReadings(result.worldLandmarks.map(getFingerExtensionReadings))
         }
 
         const handCount = result.landmarks.length
@@ -215,6 +221,7 @@ export default function CameraManager() {
         setHandPoses([])
         setOrientationMetrics([])
         setOrientations([])
+        setFingerReadings([])
         return
       }
     }
@@ -234,6 +241,7 @@ export default function CameraManager() {
     setHandPoses([])
     setOrientationMetrics([])
     setOrientations([])
+    setFingerReadings([])
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -338,6 +346,7 @@ export default function CameraManager() {
     setHandPoses([])
     setOrientationMetrics([])
     setOrientations([])
+    setFingerReadings([])
   }
 
   function toggleDebug() {
@@ -462,6 +471,22 @@ export default function CameraManager() {
                             <div>
                               Handfläche zur Kamera: {orientationMetrics[index].palmFacingCameraPercent}%
                             </div>
+                          </div>
+                        )}
+                        {fingerReadings[index]?.length > 0 && (
+                          <div style={{
+                            marginTop: 6,
+                            paddingTop: 5,
+                            borderTop: '1px solid #64748b',
+                            fontSize: 11,
+                            color: '#dbeafe'
+                          }}>
+                            <div style={{ marginBottom: 3 }}>Finger: PIP-Winkel / Streckung</div>
+                            {fingerReadings[index].map(reading => (
+                              <div key={reading.finger}>
+                                {reading.finger}: {reading.pipAngleDegrees}° / {reading.reachPercent}%
+                              </div>
+                            ))}
                           </div>
                         )}
                     </div>
