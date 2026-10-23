@@ -26,6 +26,9 @@ export default function App() {
   const activeCaptureRef = useRef<{ label: CalibrationLabel; starts: number; ends: number; samples: CalibrationSample[] } | null>(null)
   const [captureLabel, setCaptureLabel] = useState<CalibrationLabel | null>(null)
   const [calibrated, setCalibrated] = useState(false)
+  const [capturedCounts, setCapturedCounts] = useState<Record<CalibrationLabel, number>>({
+    OPEN_UPRIGHT: 0, FIST: 0, OPEN_FLAT: 0,
+  })
 
   const activateDemo = useCallback((id: string) => {
     if (id === 'reset') {
@@ -74,6 +77,7 @@ export default function App() {
         activeCaptureRef.current = null
         setCaptureLabel(null)
         capturesRef.current[capturing.label] = capturing.samples
+        setCapturedCounts(previous => ({ ...previous, [capturing.label]: capturing.samples.length }))
         const count = capturing.samples.length
         if (count < 6) {
           setGestureCalibrationMessage('Too few clean samples (' + count + '). Keep one whole hand visible and repeat this gesture.')
@@ -203,11 +207,12 @@ export default function App() {
         <button disabled={captureLabel !== null} onClick={() => captureGesture('OPEN_FLAT')}>3 · Record flat OPEN</button>
       </div>
       <p>{calibrated ? 'Personal recognizer active' : 'Using generic recognition until three distinct poses are recorded.'}
-        {' · '}Upright {capturesRef.current.OPEN_UPRIGHT.length} / Fist {capturesRef.current.FIST.length} / Flat {capturesRef.current.OPEN_FLAT.length} samples
+        {' · '}Upright {capturedCounts.OPEN_UPRIGHT} / Fist {capturedCounts.FIST} / Flat {capturedCounts.OPEN_FLAT} samples
       </p>
       <button disabled={captureLabel !== null} onClick={() => {
         activeCaptureRef.current = null
         capturesRef.current = { OPEN_UPRIGHT: [], FIST: [], OPEN_FLAT: [] }
+        setCapturedCounts({ OPEN_UPRIGHT: 0, FIST: 0, OPEN_FLAT: 0 })
         setCalibrated(false)
         setSnapshot(controller.setProfile(null))
         setGestureCalibrationMessage('Personal calibration cleared; generic recognition restored.')
