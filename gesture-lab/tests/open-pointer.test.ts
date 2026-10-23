@@ -16,12 +16,12 @@ test('only a continuously confirmed upright open palm moves and focuses a target
   assert.equal(result.mode, 'POINTER')
   assert.deepEqual(result.pointer, { x: 500, y: 400 })
   assert.equal(result.focusId, 'a')
-  assert.equal(engine.diagnostics.raw, 'OPEN_UPRIGHT')
+  assert.equal(engine.diagnostics.raw, 'OPEN')
   assert.equal(engine.diagnostics.confirmed, true)
 })
 
-test('fist, horizontal palm and two hands never produce gesture actions or pointer movement', () => {
-  for (const hands of [[hand(350, { pose: 'FIST' })], [hand(350, { orientation: 'FLAT_LIKE' })], [hand(350), hand(350, { id: 2 })]]) {
+test('fist and two hands never produce gesture actions or pointer movement', () => {
+  for (const hands of [[hand(350, { pose: 'FIST' })], [hand(350), hand(350, { id: 2 })]]) {
     const engine = new OpenPointerEngine(); start(engine)
     const result = engine.update(frame(350, { hands }), 350)
     assert.equal(result.pointer, null)
@@ -89,4 +89,21 @@ test('confirmed open uses the freshness limit rather than the shorter uncertaint
   assert.equal(engine.update(frame(350), 510).mode, 'POINTER')
   assert.equal(engine.tick(510).mode, 'POINTER')
   assert.equal(engine.tick(551).pointer, null)
+})
+
+test('initial open confirmation survives display ticks between fresh but delayed camera results', () => {
+  const engine = new OpenPointerEngine()
+  // 70 ms capture cadence + 95 ms delivery: at display time 160 the
+  // first observation is fresh, but older than the 150 ms pose dwell.
+  engine.update(frame(0), 95)
+  engine.tick(160)
+  engine.update(frame(70), 165)
+  engine.tick(230)
+  engine.update(frame(140), 235)
+  engine.tick(300)
+  const result = engine.update(frame(210), 305)
+  assert.equal(result.mode, 'POINTER')
+  assert.equal(result.focusId, 'a')
+  assert.equal(engine.diagnostics.confirmed, true)
+  assert.equal(engine.tick(411).pointer, null, 'real stale data still stops movement')
 })

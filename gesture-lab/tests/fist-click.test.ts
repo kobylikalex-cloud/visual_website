@@ -88,7 +88,6 @@ test('identity, tracking, stale data, disabled/removed/replaced/moving targets a
     ['layout', { targets: [{ ...target, rect: { ...target.rect, left: 530 } }] }],
     ['travel', { hands: [hand(400, 'FIST', { center: { x: .59, y: .5 } })] }],
     ['two hands', { hands: [hand(400, 'FIST'), hand(400, 'FIST', { id: 2 })] }],
-    ['flat', { hands: [hand(400, 'FIST', { orientation: 'FLAT_LIKE' })] }],
   ]
   for (const [name, extra, receipt] of cases) {
     const { engine, open, feed, events } = setup(); open(); feed(350, 'UNKNOWN')

@@ -4,7 +4,7 @@ import { TargetSelector, distanceToTarget } from './TargetSelector.ts'
 import type { InteractionFrame, InteractionSnapshot, TrackedHand } from './types.ts'
 
 export type PointerDiagnostics = {
-  raw: 'OPEN_UPRIGHT' | 'OTHER' | 'UNKNOWN'
+  raw: 'OPEN' | 'OTHER' | 'UNKNOWN'
   confirmed: boolean
   handId: number | null
   quality: string
@@ -57,10 +57,11 @@ export class OpenPointerEngine {
     if (this.frame && (frame.viewport.width !== this.frame.viewport.width || frame.viewport.height !== this.frame.viewport.height)) return this.cancel('Viewport changed')
     if (this.hand && (hand.id !== this.hand.id || time - this.hand.timestampMs > this.config.freshnessMs)) this.cancel('Hand reacquired; confirm open palm')
     this.lastTimestamp = time; this.frame = frame; this.hand = hand
-    const raw = hand.pose === 'OPEN' && hand.orientation === 'UPRIGHT_LIKE' ? 'OPEN_UPRIGHT'
-      : hand.pose === 'UNKNOWN' || hand.orientation === 'TRANSITION' ? 'UNKNOWN' : 'OTHER'
+    // Pose and camera-relative palm orientation are independent. With scrolling
+    // disabled, a valid open hand aims equally in side-on and flat views.
+    const raw = hand.pose === 'OPEN' ? 'OPEN' : hand.pose === 'UNKNOWN' ? 'UNKNOWN' : 'OTHER'
     this.diagnostics = { ...this.diagnostics, raw, handId: hand.id, quality: frame.reason, confirmed: false, observationAgeMs: receivedAt - time }
-    if (raw !== 'OPEN_UPRIGHT') {
+    if (raw !== 'OPEN') {
       this.candidateSince = null
       // A previously focused target can remain visually steady for the existing
       // confirmation interval. UNKNOWN never moves the pointer or renews this deadline.
@@ -68,15 +69,15 @@ export class OpenPointerEngine {
         return this.snapshot = { ...this.snapshot, mode: 'UNCERTAIN', pointer: null, reason: 'Brief uncertain pose; movement frozen' }
       }
       this.pointer.reset(); this.selector.reset()
-      return this.snapshot = { ...empty(raw === 'OTHER' ? 'Only upright open palm is enabled' : 'Open palm uncertain'), mode: 'UNCERTAIN' }
+      return this.snapshot = { ...empty(raw === 'OTHER' ? 'Open hand to aim' : 'Open palm uncertain'), mode: 'UNCERTAIN' }
     }
     const retainFocus = this.snapshot.focusId !== null && time - this.lastOpen <= this.config.confirmationMs &&
       frame.targets.some(target => target.id === this.snapshot.focusId && !target.disabled)
     this.lastOpen = time
     if (this.candidateSince === null) this.candidateSince = time
     if (time - this.candidateSince < this.config.confirmationMs) return this.snapshot = retainFocus
-      ? { ...this.snapshot, mode: 'UNCERTAIN', pointer: null, reason: 'Reconfirming upright open palm; movement frozen' }
-      : { ...empty('Confirming upright open palm'), mode: 'UNCERTAIN' }
+      ? { ...this.snapshot, mode: 'UNCERTAIN', pointer: null, reason: 'Reconfirming open palm; movement frozen' }
+      : { ...empty('Confirming open palm'), mode: 'UNCERTAIN' }
     this.diagnostics.confirmed = true
     return this.render(receivedAt)
   }
@@ -84,7 +85,11 @@ export class OpenPointerEngine {
   tick(now: number): InteractionSnapshot {
     if (!this.hand || !this.frame) return this.snapshot
     this.diagnostics.observationAgeMs = now - this.hand.timestampMs
-    if (now - this.hand.timestampMs > this.config.freshnessMs || (!this.diagnostics.confirmed && now - this.lastOpen > this.config.confirmationMs)) return this.cancel('Observation expired; movement stopped')
+    // The pose dwell is not a transport deadline. Initial/release confirmation
+    // may span several fresh observations delivered after inference. Only a
+    // genuinely uncertain pose uses the shorter visual-focus hold.
+    if (now - this.hand.timestampMs > this.config.freshnessMs ||
+        (this.diagnostics.raw !== 'OPEN' && now - this.lastOpen > this.config.confirmationMs)) return this.cancel('Observation expired; movement stopped')
     return this.diagnostics.confirmed ? this.render(now) : this.snapshot
   }
 
@@ -94,6 +99,6 @@ export class OpenPointerEngine {
     const selection = this.selector.update(pointer, frame.targets, now)
     const target = frame.targets.find(t => t.id === selection.focusId)
     this.diagnostics.distance = target ? distanceToTarget(pointer, target) : null
-    return this.snapshot = { ...empty('OPEN_UPRIGHT · highlight only'), mode: 'POINTER', pointer, ...selection }
+    return this.snapshot = { ...empty('OPEN · highlight only'), mode: 'POINTER', pointer, ...selection }
   }
 }

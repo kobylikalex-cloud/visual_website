@@ -10,10 +10,27 @@ export function distribution(values: readonly number[]) {
 export class FrameGate {
   private sequence = 0
   private active: number | null = null
+  private submittedFrame: number | null = null
+  private lastCapture = -Infinity
+  private busyFrame: number | null = null
   startedAt = 0
   begin(now: number): number | null { if (this.active !== null) return null; this.startedAt = now; return this.active = ++this.sequence }
+  /** Admit the current image atomically; observing it during busy inference
+   * must not consume it. The caller always captures the latest image, no queue.
+   */
+  captureFrame(frame: number, now: number, minimumIntervalMs: number): { token: number | null; busy: boolean } {
+    if (frame === this.submittedFrame || now - this.lastCapture < minimumIntervalMs) return { token: null, busy: false }
+    if (this.busy) {
+      const firstWait = this.busyFrame !== frame
+      this.busyFrame = frame
+      return { token: null, busy: firstWait }
+    }
+    const token = this.begin(now)!
+    this.submittedFrame = frame; this.lastCapture = now; this.busyFrame = null
+    return { token, busy: false }
+  }
   finish(token: number): boolean { if (this.active !== token) return false; this.active = null; return true }
-  reset() { this.active = null; this.sequence++; this.startedAt = 0 }
+  reset() { this.active = null; this.sequence++; this.startedAt = 0; this.submittedFrame = null; this.lastCapture = -Infinity; this.busyFrame = null }
   get busy() { return this.active !== null }
 }
 

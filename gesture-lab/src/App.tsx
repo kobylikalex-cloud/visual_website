@@ -22,7 +22,7 @@ export default function App() {
   const [paused, setPaused] = useState(false), pausedRef = useRef(false)
   const [debugEnabled, setDebugEnabled] = useState(false), debugRef = useRef(false)
   const [config, setConfig] = useState<GestureConfig>({ ...DEFAULT_GESTURE_CONFIG })
-  const [calibrationMessage, setCalibrationMessage] = useState('Hold one upright open palm at a comfortable center, then capture it.')
+  const [calibrationMessage, setCalibrationMessage] = useState('Hold one open palm at a comfortable center, then capture it.')
   const [range, setRange] = useState(.70)
   const [engine] = useState(() => new FistClickEngine())
   const [registry] = useState(() => new InteractionTargetRegistry())
@@ -67,7 +67,7 @@ export default function App() {
   }, [])
   const cancel = useCallback(() => {
     tracker.reset(); lastHandRef.current = null
-    latestRef.current = engine.cancel('Tracking stopped; raise an upright open hand')
+    latestRef.current = engine.cancel('Tracking stopped; raise an open hand')
     feedbackLatency.cancel()
     measurementRef.current.observe(latestRef.current, false, performance.now())
     setSnapshot(latestRef.current)
@@ -130,8 +130,8 @@ export default function App() {
   function applyConfig(next: GestureConfig) { setConfig(next); latestRef.current = engine.configure(next); setSnapshot(latestRef.current) }
   function centerPointer() {
     const hand = lastHandRef.current
-    if (!hand || hand.pose !== 'OPEN' || hand.orientation !== 'UPRIGHT_LIKE' || performance.now() - hand.timestampMs > config.freshnessMs) {
-      setCalibrationMessage('Calibration needs one fresh upright open palm. Keep it visible and try again.'); return
+    if (!hand || hand.pose !== 'OPEN' || performance.now() - hand.timestampMs > config.freshnessMs) {
+      setCalibrationMessage('Calibration needs one fresh open palm. Keep it visible and try again.'); return
     }
     applyConfig(calibratePointer(hand.center, config))
     setCalibrationMessage('Comfortable center captured. Hold the open palm to confirm.')
@@ -162,7 +162,7 @@ export default function App() {
         <label>Acceptance measurement <select aria-label="Acceptance measurement" value={measurement} onChange={event => {
           const mode = event.target.value as typeof measurement; setMeasurement(mode); measurementRef.current = new PointerMeasurementSession(mode)
         }}><option value="off">Off / reset</option><option value="stationary">Stationary palm · 10 seconds</option><option value="moving">Moving between five targets</option></select></label>
-        <p>Open upright palm to aim; hold a complete fist to activate one of the five test buttons once. Reopen before repeating. Drag, scrolling and two-hand controls remain disabled. Escape pauses gesture control.</p>
+        <p>Open palm to aim, including side-on and flat views; hold a complete fist to activate one of the five test buttons once. Reopen before repeating. Drag, scrolling and two-hand controls remain disabled. Escape pauses gesture control.</p>
       </section>
     </>}
   </GesturePlayground>

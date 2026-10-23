@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { LocalEvaluation, summarizeEvaluation, TRUTH_LABELS, type HandLabel, type TruthLabel } from '../evaluation/LocalEvaluation'
 import { RecognitionComparison, type ComparisonRow } from '../evaluation/RecognitionComparison'
-import { getFingerExtensionReadings } from '../gestures/FingerExtensionDiagnostics'
+import { getFingerPoseEvidence } from '../control/FingerPoseEvidence'
+import { recognizeControlHand } from '../control/ControlRecognition'
 
 type Props = {
   rows: ComparisonRow[]
@@ -54,25 +55,27 @@ export default function DebugEvaluationPanel({ rows, session, comparison, camera
       <p>A/B baselines are observational only. Controls use validated PIP/reach recognition; both A/B baselines use the same landmarks and 150 ms confirmation. Recording pauses gesture actions.</p>
       <table style={{ width: '100%', margin: '12px 0', textAlign: 'left' }}>
         <caption>A = conservative 99131fc · B = historical hybrid a54a49e</caption>
-        <thead><tr><th>MediaPipe label</th><th>A raw / stable</th><th>B raw / stable</th><th>A / B compute</th></tr></thead>
+        <thead><tr><th>MediaPipe label</th><th>A raw / stable</th><th>B raw / stable</th><th>Control raw</th><th>A / B compute</th></tr></thead>
         <tbody>{rows.length === 0
-          ? <tr><td colSpan={4}>No current hand observations</td></tr>
+          ? <tr><td colSpan={5}>No current hand observations</td></tr>
           : rows.map((row, index) => <tr key={`${row.label}-${index}`}>
             <td>{row.label}{row.identityReliable ? '' : ' (ambiguous)'}</td>
             <td>{row.conservative.raw} / {row.conservative.stable}</td>
             <td>{row.hybrid.raw} / {row.hybrid.stable}</td>
+            <td>{recognizeControlHand(row.landmarks).pose}</td>
             <td>{ms(row.conservative.computeMs)} / {ms(row.hybrid.computeMs)}</td>
           </tr>)}</tbody>
       </table>
       {rows.map((row, index) => <details key={`${row.label}-${index}`}>
         <summary>{row.label} finger readings · {row.orientation} (raw orientation)</summary>
         <table style={{ width: '100%' }}>
-          <thead><tr><th>Finger</th><th>PIP</th><th>DIP</th><th>Reach</th></tr></thead>
-          <tbody>{getFingerExtensionReadings(row.landmarks).map(reading => <tr key={reading.finger}>
-            <td>{reading.finger}</td><td>{reading.pipAngleDegrees}°</td><td>{reading.dipAngleDegrees}°</td><td>{reading.reachPercent}%</td>
+          <thead><tr><th>Finger</th><th>PIP</th><th>DIP</th><th>Reach</th><th>Palm advance</th><th>Control evidence</th></tr></thead>
+          <tbody>{(getFingerPoseEvidence(row.landmarks) ?? []).map(reading => <tr key={reading.finger}>
+            <td>{reading.finger}</td><td>{Math.round(reading.pipAngleDegrees)}°</td><td>{Math.round(reading.dipAngleDegrees)}°</td><td>{Math.round(reading.reachPercent)}%</td><td>{Math.round(reading.palmAdvancePercent)}%</td><td>{reading.state}</td>
           </tr>)}</tbody>
         </table>
       </details>)}
+      <p>Palm advance is measured along the hand, independently of camera angle. Negative values mean a fingertip folds behind its own knuckle plane. Control raw uses all four fingers; A/B summaries still refer exclusively to the historical baselines.</p>
       <p>Optional labels refer to MediaPipe Left/Right, not screen side. OPEN labels score finger pose, grouped by upright/flat ground truth; orientation stays diagnostic. OTHER expects UNKNOWN.</p>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', margin: '12px 0' }}>
         {(['Left', 'Right'] as const).map(hand => <label key={hand}>

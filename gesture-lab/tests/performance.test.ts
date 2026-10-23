@@ -30,3 +30,30 @@ test('performance keeps bounded latency samples, reports median/p95 and separate
   assert.equal(report.cameraFrames, 4)
   assert.equal(report.renderFps, 62.5)
 })
+
+test('a newest frame seen while inference is busy remains available immediately after completion', () => {
+  const gate = new FrameGate()
+  const first = gate.captureFrame(1, 0, 33)
+  assert.ok(first.token)
+  assert.equal(gate.captureFrame(2, 35, 33).token, null)
+  assert.equal(gate.captureFrame(2, 40, 33).busy, false, 'count a busy video frame only once')
+  gate.finish(first.token!)
+  const latest = gate.captureFrame(2, 50, 33)
+  assert.ok(latest.token, 'do not wait for frame 3 after forgetting frame 2')
+  gate.finish(latest.token!)
+  assert.equal(gate.captureFrame(2, 90, 33).token, null, 'never process the same frame twice')
+  assert.ok(gate.captureFrame(3, 90, 33).token)
+})
+
+test('frame capture respects cadence and resets identity without reusing old completion tokens', () => {
+  const gate = new FrameGate()
+  const first = gate.captureFrame(10, 0, 33).token!
+  gate.finish(first)
+  assert.equal(gate.captureFrame(11, 20, 33).token, null)
+  assert.ok(gate.captureFrame(12, 40, 33).token, 'capture newest image, never queue 11')
+  gate.reset()
+  const next = gate.captureFrame(10, 50, 33).token!
+  assert.ok(next)
+  assert.equal(gate.finish(first), false)
+  assert.equal(gate.busy, true)
+})

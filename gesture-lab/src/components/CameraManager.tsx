@@ -54,13 +54,10 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
   const lastPerfPublishRef = useRef(0)
   const videoCallbackRef = useRef<number | null>(null)
   const videoSerialRef = useRef(0)
-  const submittedSerialRef = useRef(0)
   const workerStartupRef = useRef<(() => void) | null>(null)
   const animationRef = useRef<number | null>(null)
 
   const sessionRef = useRef(0)
-  const lastVideoTimeRef = useRef(-1)
-  const lastDetectionRef = useRef(0)
   const performanceWindowRef = useRef({ startedAt: 0, frames: 0, inferenceMs: 0 })
   const debugRef = useRef(false)
   const lastDebugUiRef = useRef(0)
@@ -112,7 +109,6 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
     gateRef.current.reset()
     benchmarkingRef.current = false
     videoSerialRef.current = 0
-    submittedSerialRef.current = 0
     detectorRef.current?.close()
     detectorRef.current = null
 
@@ -133,8 +129,6 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
       context.clearRect(0, 0, canvas.width, canvas.height)
     }
 
-    lastVideoTimeRef.current = -1
-    lastDetectionRef.current = 0
     performanceWindowRef.current = { startedAt: 0, frames: 0, inferenceMs: 0 }
     lastDebugUiRef.current = 0
     poseFiltersRef.current.clear()
@@ -387,22 +381,14 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
     if (gateRef.current.busy && now - gateRef.current.startedAt > (benchmarkingRef.current ? 10000 : 2000)) {
       sessionRef.current++; releaseResources(); setStatus('error'); setError('Tracking timed out. Restart camera.'); return
     }
-    const unseenFrame = typeof video.requestVideoFrameCallback === 'function'
-      ? videoSerialRef.current !== submittedSerialRef.current
-      : video.currentTime !== lastVideoTimeRef.current
-    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && unseenFrame &&
-        now - lastDetectionRef.current >= TRACKING_INTERVAL_MS) {
-      lastVideoTimeRef.current = video.currentTime
-      submittedSerialRef.current = videoSerialRef.current
-      if (gateRef.current.busy) {
-        metricsRef.current.drop('busy')
-        animationRef.current = requestAnimationFrame(processFrame)
-        return
-      }
-      lastDetectionRef.current = now
+    const serial = typeof video.requestVideoFrameCallback === 'function' ? videoSerialRef.current : video.currentTime
+    const admission = video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+      ? gateRef.current.captureFrame(serial, now, TRACKING_INTERVAL_MS) : { token: null, busy: false }
+    if (admission.busy) metricsRef.current.drop('busy')
+    if (admission.token !== null) {
+      const token = admission.token
       if (workerRef.current) {
         const worker = workerRef.current
-        const token = gateRef.current.begin(now)!
         void createImageBitmap(video).then(bitmap => {
           if (workerRef.current !== worker) {
             bitmap.close()
@@ -427,6 +413,8 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
           setStatus('error')
           setError('Fehler während der Handerkennung.')
           return
+        } finally {
+          gateRef.current.finish(token)
         }
       }
     }

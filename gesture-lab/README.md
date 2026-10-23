@@ -1,6 +1,6 @@
 # Gesture Lab — Sprint 02
 
-This sprint adds **a complete fist to activate the previously focused test button once** to the established upright-open pointer. Reopen the hand before another click. Only the five test buttons have registered gesture actions. Gesture grabbing, dragging, scrolling and two-hand control remain disconnected. Native mouse, touch and keyboard controls remain available. Camera images, landmarks and measurements stay on this computer.
+This sprint adds **a complete fist to activate the previously focused test button once** to the established open-hand pointer. Open palms can also aim from side-on and flat views. Reopen the hand before another click. Only the five test buttons have registered gesture actions. Gesture grabbing, dragging, scrolling and two-hand control remain disconnected. Native mouse, touch and keyboard controls remain available. Camera images, landmarks and measurements stay on this computer.
 
 ## Run the existing application
 
@@ -8,21 +8,21 @@ Node 24.14.0 and existing dependencies are available locally.
 
 ```powershell
 Set-Location -LiteralPath 'C:\Users\kobyl\vision_website\gesture-lab'
-npm run dev -- --host localhost --port 5174 --strictPort
+npm run dev -- --host localhost --port 5173 --strictPort
 ```
 
-Open [localhost:5174](http://localhost:5174/). If the server is already running, use it directly. After code changes, reload before a camera test. Do not run two camera tabs at once.
+Open [localhost:5173](http://localhost:5173/). If the server is already running, use it directly. After code changes, reload before a camera test. Do not run two camera tabs at once.
 
 1. Keep this tab visible and in the foreground. Start camera; the selected device name appears below the controls.
-2. Raise **one upright open hand**, hold briefly, then move toward the five target buttons. Let one target settle, close all four non-thumb fingers into a fist and hold for approximately 200 ms. The locked button pulses and its count increments once. Hold closed: nothing repeats. Reopen upright, then select again.
+2. Raise **one open hand**, including side-on and flat views, hold briefly, then move toward the five target buttons. Let one target settle, close all four non-thumb fingers into a fist and hold for approximately 200 ms. The locked button pulses and its count increments once. Hold closed: nothing repeats. Reopen, then select again.
 3. Remove the hand to disengage. Escape pauses the pointer; Resume pointer explicitly resumes it.
 4. Mouse/keyboard can still activate buttons, move the card and scroll the journal.
 
 ## Debug, calibration and measurements
 
-Debug is off initially. Camera, landmarks and the internal interaction point are visible **only** with Debug ON. The debug section below the playground shows raw/confirmed OPEN_UPRIGHT, actual spatial ID, geometry quality, focus/distance, observation age, rendering cadence, processed camera FPS, median/p95 inference/processing/delivery and CSS feedback latency, frame rejection reasons and long tasks.
+Debug is off initially. Camera, landmarks and the internal interaction point are visible **only** with Debug ON. The debug section below the playground shows raw/confirmed OPEN, actual spatial ID, geometry quality, focus/distance, observation age, rendering cadence, processed camera FPS, median/p95 inference/processing/delivery and CSS feedback latency, frame rejection reasons and long tasks.
 
-Capture a comfortable center with one fresh open upright palm. **Pointer movement gain** is independently adjustable from **0.8× to 2.5×**, default **1.6×**, relative to the previous mapping at 1.0×. Increasing gain enlarges displacement about the captured center; the existing smoothing state is retained while tuning. Recentring preserves gain and movement range. Camera movement range remains a separate setting. Calibration affects movement only; finger/orientation thresholds are unchanged.
+Capture a comfortable center with one fresh open palm. **Pointer movement gain** is independently adjustable from **0.8× to 2.5×**, default **1.6×**, relative to the previous mapping at 1.0×. Increasing gain enlarges displacement about the captured center; the existing smoothing state is retained while tuning. Recentring preserves gain and movement range. Camera movement range remains a separate setting. Calibration affects movement only; finger/orientation thresholds are unchanged.
 
 With the camera stopped, select **Compare CPU/GPU on identical frames**, then Start camera. The worker tests the same ImageBitmap/timestamp on each available delegate, alternating order, excluding five warmups, measuring twenty pairs. Highlighting pauses during comparison. The delegate with the lower measured p95 remains active. Unavailable delegates are reported. AUTO prefers an available GPU worker but is explicitly unbenchmarked; CPU/GPU can also be selected directly. Unsupported workers use an explicitly reported main-thread fallback outside comparison mode.
 

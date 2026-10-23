@@ -17,10 +17,12 @@ function palmCenter(detection: Detection): Point2 | null {
   // Reject only the palm moving outside the image, not individual fingertips.
   if (palm.some(p => p.x < -0.04 || p.x > 1.04 || p.y < -0.04 || p.y > 1.04)) return null
   const wrist = points[0]
-  const long = { x: points[9].x - wrist.x, y: points[9].y - wrist.y }
-  const across = { x: points[17].x - points[5].x, y: points[17].y - points[5].y }
-  // Reject a genuinely collapsed palm, not an edge-on finger silhouette.
-  if (Math.abs(long.x * across.y - long.y * across.x) <= 1e-10) return null
+  const long = { x: points[9].x - wrist.x, y: points[9].y - wrist.y, z: points[9].z - wrist.z }
+  const across = { x: points[17].x - points[5].x, y: points[17].y - points[5].y, z: points[17].z - points[5].z }
+  // A side-on palm has zero projected area but still spans a valid 3D plane.
+  // Reject collapse in all three dimensions, not camera yaw.
+  if (Math.hypot(long.y * across.z - long.z * across.y,
+    long.z * across.x - long.x * across.z, long.x * across.y - long.y * across.x) <= 1e-10) return null
   const center = {
     x: palm.reduce((sum, point) => sum + point.x, 0) / palm.length,
     y: palm.reduce((sum, point) => sum + point.y, 0) / palm.length,

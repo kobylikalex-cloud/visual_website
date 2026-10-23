@@ -19,11 +19,11 @@ export type GesturePlaygroundProps = {
 }
 
 const readingSections = [
-  { title: 'One gesture at a time.', category: 'SPRINT 01', text: 'Raise one clearly open upright hand. The nearest eligible target responds to proximity. A complete fist activates the locked test button once; confirmed reopening enables the next click.' },
+  { title: 'One gesture at a time.', category: 'SPRINT 01', text: 'Raise one clearly open hand. Side-on and flat palms also aim. The nearest eligible target responds to proximity. A complete fist activates the locked test button once; confirmed reopening enables the next click.' },
   { title: 'A steady place to begin.', category: '01 / HOLD', text: 'Keep the whole palm visible and hold still for ten seconds. In debug mode, record stationary pointer variation and focus interruptions.' },
   { title: 'Make movement comfortable.', category: '02 / CALIBRATE', text: 'Capture a comfortable center in debug mode and adjust the camera movement range. A larger range lowers pointer gain. Recognition thresholds stay unchanged.' },
   { title: 'Move between the five targets.', category: '03 / MOVE', text: 'Try slow horizontal and vertical movement, then faster movement. Notice whether feedback follows smoothly and whether focus remains steady.' },
-  { title: 'Disengage safely.', category: '04 / RELEASE', text: 'Remove the hand, briefly occlude it, then return. Stale observations stop movement. Partial closure, unknown pose, a flat palm or a second hand must not activate anything. Dragging and gesture scrolling remain disabled.' },
+  { title: 'Disengage safely.', category: '04 / RELEASE', text: 'Remove the hand, briefly occlude it, then return. Stale observations stop movement. Partial closure, unknown pose or a second hand must not activate anything. Dragging and gesture scrolling remain disabled.' },
   { title: 'Native input stays available.', category: '05 / INPUT', text: 'Use mouse, touch or keyboard to activate buttons, move the card and read these notes. Escape pauses pointer feedback.' },
 ]
 const modeLabels: Record<InteractionSnapshot['mode'], string> = {
@@ -92,7 +92,7 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
         <div className="intro-copy">
           <p className="eyebrow"><span /> BEYOND THE CURSOR</p>
           <h1 id="playground-title">One hand.<br /><span>Steady focus.</span></h1>
-          <p className="intro-description">Raise one upright open hand. Move between the targets.<br className="desktop-break" /> Hold a complete fist to activate. Reopen to repeat.</p>
+          <p className="intro-description">Raise one open hand. Move between the targets.<br className="desktop-break" /> Hold a complete fist to activate. Reopen to repeat.</p>
         </div>
         <aside className="session-panel" aria-label="Camera and interaction controls">
           <div className="session-heading"><span className="eyebrow">YOUR SESSION</span><span className="session-icon" aria-hidden="true">↗</span></div>
@@ -105,7 +105,7 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
       </section>
 
       <div className="gesture-primer" aria-label="Gesture quick guide">
-        <div><span className="primer-symbol" aria-hidden="true">↗</span><p><strong>Open & upright</strong><span>Aim at a control</span></p></div>
+        <div><span className="primer-symbol" aria-hidden="true">↗</span><p><strong>Open hand</strong><span>Aim at a control</span></p></div>
         <div><span className="primer-symbol primer-grasp" aria-hidden="true">◇</span><p><strong>Close to activate</strong><span>Hold a fist · reopen to repeat</span></p></div>
         <div><span className="primer-symbol" aria-hidden="true">⇅</span><p><strong>One hand at a time</strong><span>Scroll and two-hand control disabled</span></p></div>
         <p className="escape-hint"><kbd>esc</kbd> to pause</p>
@@ -117,7 +117,7 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
           const id = 'test-' + index
           return <button key={id} className={targetClass(id, 'pointer-test-button pointer-target-' + index)} style={gestureStyle(id)} data-gesture-target={id} data-gesture-kind="click" onClick={() => onActivate(id)}><span>0{index + 1}</span>{label}<small>{buttonActivations[id] ?? 0} activations · mouse / keyboard welcome</small>{(buttonActivations[id] ?? 0) > 0 && <span key={buttonActivations[id]} className="activation-flash" aria-hidden="true" />}</button>
         })}</div>
-        <p>Aim with an upright open palm. Let the target settle, close a complete fist, then reopen. Each button shows its activation count.</p>
+        <p>Aim with an open palm. Let the target settle, close a complete fist, then reopen. Each button shows its activation count.</p>
       </section>
       <div className="experiment-grid">
         <section className="interaction-experiments" aria-labelledby="interaction-title">

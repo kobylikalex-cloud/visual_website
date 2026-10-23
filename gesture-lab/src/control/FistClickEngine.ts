@@ -4,7 +4,7 @@ import type { ActivationRequest } from './InteractionTargetRegistry.ts'
 import type { InteractionFrame, InteractionSnapshot, InteractionTarget, Point2 } from './types.ts'
 
 export const DEFAULT_CLICK_CONFIG = { focusStableMs: 150, fistConfirmationMs: 200, uncertaintyMs: 350, maxPalmTravel: .08 }
-export type ClickState = 'OPEN_UPRIGHT' | 'TARGET_FOCUSED' | 'FIST_TRANSITION' | 'FIST_CONFIRMED' | 'CLICK' | 'WAIT_FOR_RELEASE'
+export type ClickState = 'OPEN' | 'TARGET_FOCUSED' | 'FIST_TRANSITION' | 'FIST_CONFIRMED' | 'CLICK' | 'WAIT_FOR_RELEASE'
 export type ClickDiagnostics = {
   pose: 'OPEN' | 'FIST' | 'UNKNOWN'; state: ClickState; lockedTargetId: string | null; targetLocked: boolean
   progress: number; validClicks: number; rejectedAttempts: number; lastCancellation: string
@@ -28,7 +28,7 @@ export class FistClickEngine {
   private pendingAck: { sequence: number; since: number } | null = null
   private snapshot: ClickSnapshot
   diagnostics: PointerDiagnostics
-  clickDiagnostics: ClickDiagnostics = { pose: 'UNKNOWN', state: 'OPEN_UPRIGHT', lockedTargetId: null, targetLocked: false, progress: 0,
+  clickDiagnostics: ClickDiagnostics = { pose: 'UNKNOWN', state: 'OPEN', lockedTargetId: null, targetLocked: false, progress: 0,
     validClicks: 0, rejectedAttempts: 0, lastCancellation: '', lastConfirmationMs: null, lastGestureLatencyMs: null }
 
   constructor(config = DEFAULT_GESTURE_CONFIG, clickConfig = DEFAULT_CLICK_CONFIG) {
@@ -48,7 +48,7 @@ export class FistClickEngine {
     if (this.pending()) { this.clickDiagnostics.rejectedAttempts++; this.clickDiagnostics.lastCancellation = reason }
     this.lock = null; this.focusId = null; this.focusedTarget = null; this.anchor = null; this.frame = null; this.pendingAck = null
     this.clickDiagnostics.pose = 'UNKNOWN'
-    this.clickDiagnostics.state = wait ? 'WAIT_FOR_RELEASE' : 'OPEN_UPRIGHT'
+    this.clickDiagnostics.state = wait ? 'WAIT_FOR_RELEASE' : 'OPEN'
     this.clickDiagnostics.progress = 0; this.clickDiagnostics.targetLocked = false; this.clickDiagnostics.lockedTargetId = null
     const result = this.pointer.cancel(reason); this.diagnostics = { ...this.pointer.diagnostics }
     return this.snapshot = this.wrap(result)
@@ -65,20 +65,20 @@ export class FistClickEngine {
     if (this.frame && this.frame.hands[0]?.id !== hand.id) { this.cancel('Tracked hand identity changed'); this.frame = frame; return this.snapshot }
     this.frame = frame
     this.clickDiagnostics.pose = hand.pose
-    this.diagnostics = { ...this.diagnostics, raw: hand.pose === 'OPEN' && hand.orientation === 'UPRIGHT_LIKE' ? 'OPEN_UPRIGHT' : hand.pose === 'UNKNOWN' ? 'UNKNOWN' : 'OTHER',
+    this.diagnostics = { ...this.diagnostics, raw: hand.pose === 'OPEN' ? 'OPEN' : hand.pose === 'UNKNOWN' ? 'UNKNOWN' : 'OTHER',
       handId: hand.id, quality: frame.reason, observationAgeMs: receivedAt - time }
     if (this.clickDiagnostics.state === 'CLICK') this.clickDiagnostics.state = 'WAIT_FOR_RELEASE'
 
     if (this.clickDiagnostics.state === 'WAIT_FOR_RELEASE') {
-      if (hand.pose === 'OPEN' && hand.orientation === 'UPRIGHT_LIKE') {
+      if (hand.pose === 'OPEN') {
         const base = this.pointer.update(frame, receivedAt); this.diagnostics = { ...this.pointer.diagnostics }
         if (this.diagnostics.confirmed) {
-          this.lock = null; this.clickDiagnostics.state = 'OPEN_UPRIGHT'; this.focusId = null
+          this.lock = null; this.clickDiagnostics.state = 'OPEN'; this.focusId = null
           return this.observeOpen(base, receivedAt)
         }
         return this.snapshot = this.wrap(base)
       }
-      this.pointer.cancel('Open upright hand to release')
+      this.pointer.cancel('Open hand to release')
       if (this.lock && !this.targetValid(frame.targets)) this.lock = null
       return this.freeze('Open your hand before the next click')
     }
@@ -131,7 +131,6 @@ export class FistClickEngine {
     const lock = this.lock!, hand = frame.hands[0], time = frame.timestampMs
     if (hand.id !== lock.handId || !this.targetValid(frame.targets)) return this.cancel('Locked identity or target changed')
     if (Math.hypot(hand.center.x - lock.anchor.x, hand.center.y - lock.anchor.y) > this.clickConfig.maxPalmTravel) return this.cancel('Palm moved too far during closure')
-    if (hand.orientation === 'FLAT_LIKE') return this.cancel('Flat palm is not a click gesture')
     if (hand.pose === 'OPEN') return this.cancel('Hand reopened before fist confirmation')
     if (hand.pose === 'UNKNOWN') {
       lock.fistSince = null; this.clickDiagnostics.progress = 0
@@ -157,12 +156,12 @@ export class FistClickEngine {
 
   private observeOpen(base: InteractionSnapshot, now: number): ClickSnapshot {
     this.clickDiagnostics.progress = 0
-    if (!this.diagnostics.confirmed || !base.focusId) { this.focusId = null; this.clickDiagnostics.state = 'OPEN_UPRIGHT' }
+    if (!this.diagnostics.confirmed || !base.focusId) { this.focusId = null; this.clickDiagnostics.state = 'OPEN' }
     else {
       const target = this.frame?.targets.find(t => t.id === base.focusId)
       if (base.focusId !== this.focusId || target?.activationToken !== this.focusedTarget?.activationToken) { this.focusId = base.focusId; this.focusSince = now }
       this.focusedTarget = target ? { ...target, rect: { ...target.rect } } : null
-      this.clickDiagnostics.state = target?.activationToken !== undefined && target.kind === 'click' && now - this.focusSince >= this.clickConfig.focusStableMs ? 'TARGET_FOCUSED' : 'OPEN_UPRIGHT'
+      this.clickDiagnostics.state = target?.activationToken !== undefined && target.kind === 'click' && now - this.focusSince >= this.clickConfig.focusStableMs ? 'TARGET_FOCUSED' : 'OPEN'
       this.anchor = this.frame?.hands[0]?.center ?? null
     }
     return this.snapshot = this.wrap(base)
