@@ -473,7 +473,7 @@ export default function CameraManager() {
                             </div>
                           </div>
                         )}
-                        {fingerReadings[index]?.length > 0 && (
+                        {(fingerReadings[index]?.length ?? 0) > 0 && (
                           <div style={{
                             marginTop: 6,
                             paddingTop: 5,
