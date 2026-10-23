@@ -1,94 +1,55 @@
+import {
+  getFingerExtensionReadings,
+  type FingerExtensionReading
+} from './FingerExtensionDiagnostics'
 
 export type HandPose = 'OPEN' | 'FIST' | 'UNKNOWN'
 
-type Point3D = {
-  x: number
-  y: number
-  z: number
-}
-
-// MCP, PIP and DIP joints for four fingers
-const FINGERS = [
-  [5, 6, 7],    // Index
-  [9, 10, 11],  // Middle
-  [13, 14, 15], // Ring
-  [17, 18, 19]  // Pinky
-] as const
-
-function calculateAngle(
-  a: Point3D,
-  b: Point3D,
-  c: Point3D
-): number | null {
-  const ab = {
-    x: a.x - b.x,
-    y: a.y - b.y,
-    z: a.z - b.z
-  }
-
-  const cb = {
-    x: c.x - b.x,
-    y: c.y - b.y,
-    z: c.z - b.z
-  }
-
-  const dot =
-    ab.x * cb.x +
-    ab.y * cb.y +
-    ab.z * cb.z
-
-  const lengthAB = Math.hypot(ab.x, ab.y, ab.z)
-  const lengthCB = Math.hypot(cb.x, cb.y, cb.z)
-
-  const denominator = lengthAB * lengthCB
-
-  if (!Number.isFinite(denominator) || denominator < 1e-8) {
-    return null
-  }
-
-  const cosine = Math.max(
-    -1,
-    Math.min(1, dot / denominator)
-  )
-
-  return Math.acos(cosine) * (180 / Math.PI)
-}
-
-export function classifyHandPose(
-  landmarks: Point3D[]
+/**
+ * Combine PIP angles with finger-tip reach rather than relying on PIP
+ * angles alone. A horizontal open hand can have inaccurate/occluded
+ * PIP landmarks even while the finger tips remain visibly extended.
+ *
+ * Thresholds are provisional, calibrated against one recorded laptop
+ * webcam session. Do not use this classification alone to trigger
+ * destructive or irreversible actions.
+ */
+export function classifyFingerReadings(
+  readings: FingerExtensionReading[]
 ): HandPose {
-  if (!landmarks || landmarks.length !== 21) {
-    return 'UNKNOWN'
-  }
+  if (readings.length !== 4) return 'UNKNOWN'
 
   let extended = 0
   let curled = 0
 
-  for (const [mcp, pip, dip] of FINGERS) {
-    const angle = calculateAngle(
-      landmarks[mcp],
-      landmarks[pip],
-      landmarks[dip]
-    )
+  for (const reading of readings) {
+    const { pipAngleDegrees: angle, reachPercent: reach } = reading
 
-    if (angle === null) return 'UNKNOWN'
+    if (!Number.isFinite(angle) || !Number.isFinite(reach)) return 'UNKNOWN'
 
-    if (angle >= 145) {
-      extended++
-    } else if (angle <= 125) {
-      curled++
-    }
+    // Two independent signs of extension. The reach fallback is useful
+    // when horizontal fingers partly occlude the PIP landmarks.
+    const isExtended =
+      (angle >= 145 && reach >= 65) ||
+      (angle >= 100 && reach >= 70)
+
+    // Require joint bend AND a short MCP-to-tip reach to identify a fist.
+    // A faulty PIP angle alone must not be counted as a curled finger.
+    const isCurled = angle <= 135 && reach <= 58
+
+    if (isExtended) extended++
+    else if (isCurled) curled++
   }
 
-  if (extended >= 3 && curled <= 1) {
-    return 'OPEN'
-  }
-
-  if (curled >= 3 && extended <= 1) {
-    return 'FIST'
-  }
-
+  if (curled >= 3 && extended <= 1) return 'FIST'
+  if (extended >= 3 && curled <= 1) return 'OPEN'
   return 'UNKNOWN'
+}
+
+export function classifyHandPose(
+  landmarks: { x: number; y: number; z: number }[]
+): HandPose {
+  return classifyFingerReadings(getFingerExtensionReadings(landmarks))
 }
 
 /**
