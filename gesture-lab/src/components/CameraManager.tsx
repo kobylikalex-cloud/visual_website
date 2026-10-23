@@ -102,7 +102,7 @@ export default function CameraManager() {
         // This avoids one uncertain frame immediately switching OPEN to UNKNOWN.
         const visibleHands = new Set<string>()
         const poses = result.worldLandmarks.map((landmarks, index) => {
-          const label = result.handednesses[index]?.[0]?.categoryName
+          const label = result.handedness[index]?.[0]?.categoryName
           const key = label === 'Left' || label === 'Right'
             ? label
             : `index-${index}`
