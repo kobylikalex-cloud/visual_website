@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Private local gesture recordings, extracted frames and evaluation tooling
+.local-evaluation/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,5 +1,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import DebugEvaluationPanel from './DebugEvaluationPanel'
+import { RecognitionComparison, type ComparisonRow } from '../evaluation/RecognitionComparison'
+import { LocalEvaluation } from '../evaluation/LocalEvaluation'
 import {
   DrawingUtils,
   FilesetResolver,
@@ -39,6 +42,8 @@ export default function CameraManager() {
   const debugRef = useRef(false)
   const poseFiltersRef = useRef(new Map<string, HandPoseStabilizer>())
   const orientationFiltersRef = useRef(new Map<string, HandOrientationStabilizer>())
+  const [comparison] = useState(() => new RecognitionComparison())
+  const [evaluation] = useState(() => new LocalEvaluation())
 
   const [status, setStatus] = useState<CameraStatus>('idle')
   const [loadingMessage, setLoadingMessage] = useState('')
@@ -49,6 +54,7 @@ export default function CameraManager() {
   const [orientations, setOrientations] = useState<HandOrientation[]>([])
   const [fingerReadings, setFingerReadings] = useState<FingerExtensionReading[][]>([])
   const [debugEnabled, setDebugEnabled] = useState(false)
+  const [comparisonRows, setComparisonRows] = useState<ComparisonRow[]>([])
 
   // Stop camera, inference loop and MediaPipe resources.
   const releaseResources = useCallback(() => {
@@ -79,7 +85,9 @@ export default function CameraManager() {
     lastDetectionRef.current = 0
     poseFiltersRef.current.clear()
     orientationFiltersRef.current.clear()
-  }, [])
+    comparison.reset()
+    evaluation.stop()
+  }, [comparison, evaluation])
 
   // Invalidate pending camera startup before releasing resources on unmount.
   const cleanupOnUnmount = useCallback(() => {
@@ -112,7 +120,9 @@ export default function CameraManager() {
         lastVideoTimeRef.current = video.currentTime
         lastDetectionRef.current = now
 
+        const inferenceStart = performance.now()
         const result = detector.detectForVideo(video, now)
+        const inferenceMs = performance.now() - inferenceStart
         
         // Stabilize each hand independently, keyed by MediaPipe handedness.
         // Known poses require confirmation; uncertainty immediately clears pose output.
@@ -169,6 +179,11 @@ export default function CameraManager() {
         if (debugRef.current) {
           setOrientationMetrics(readings)
           setFingerReadings(result.worldLandmarks.map(getFingerExtensionReadings))
+          const rows = comparison.update(result.worldLandmarks.map((landmarks, index) => ({
+            label: result.handedness[index]?.[0]?.categoryName ?? 'Unlabeled', landmarks,
+          })), now)
+          evaluation.record(rows, performance.now(), inferenceMs)
+          setComparisonRows(rows)
         }
 
         const handCount = result.landmarks.length
@@ -222,6 +237,7 @@ export default function CameraManager() {
         setOrientationMetrics([])
         setOrientations([])
         setFingerReadings([])
+        setComparisonRows([])
         return
       }
     }
@@ -242,6 +258,7 @@ export default function CameraManager() {
     setOrientationMetrics([])
     setOrientations([])
     setFingerReadings([])
+    setComparisonRows([])
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -347,6 +364,7 @@ export default function CameraManager() {
     setOrientationMetrics([])
     setOrientations([])
     setFingerReadings([])
+    setComparisonRows([])
   }
 
   function toggleDebug() {
@@ -356,6 +374,9 @@ export default function CameraManager() {
     setDebugEnabled(next)
 
     if (!next) {
+      evaluation.stop()
+      comparison.reset()
+      setComparisonRows([])
       const canvas = canvasRef.current
       const context = canvas?.getContext('2d')
 
@@ -542,6 +563,13 @@ export default function CameraManager() {
           Debug: {debugEnabled ? 'ON' : 'OFF'}
         </button>
       </div>
+
+      {debugEnabled && <DebugEvaluationPanel
+        rows={comparisonRows}
+        session={evaluation}
+        comparison={comparison}
+        cameraActive={status === 'active'}
+      />}
 
       {status === 'loading' && (
         <p style={{ color: '#38bdf8' }}>
