@@ -36,7 +36,7 @@ export default function CameraManager() {
   const sessionRef = useRef(0)
   const lastVideoTimeRef = useRef(-1)
   const lastDetectionRef = useRef(0)
-  const debugRef = useRef(true)
+  const debugRef = useRef(false)
   const poseFiltersRef = useRef(new Map<string, HandPoseStabilizer>())
   const orientationFiltersRef = useRef(new Map<string, HandOrientationStabilizer>())
 
@@ -48,7 +48,7 @@ export default function CameraManager() {
   const [orientationMetrics, setOrientationMetrics] = useState<(HandOrientationMetrics | null)[]>([])
   const [orientations, setOrientations] = useState<HandOrientation[]>([])
   const [fingerReadings, setFingerReadings] = useState<FingerExtensionReading[][]>([])
-  const [debugEnabled, setDebugEnabled] = useState(true)
+  const [debugEnabled, setDebugEnabled] = useState(false)
 
   // Stop camera, inference loop and MediaPipe resources.
   const releaseResources = useCallback(() => {
@@ -115,7 +115,7 @@ export default function CameraManager() {
         const result = detector.detectForVideo(video, now)
         
         // Stabilize each hand independently, keyed by MediaPipe handedness.
-        // This avoids one uncertain frame immediately switching OPEN to UNKNOWN.
+        // Known poses require confirmation; uncertainty immediately clears pose output.
         const visibleHands = new Set<string>()
         const readings = result.worldLandmarks.map(getHandOrientationMetrics)
         const nextOrientations: HandOrientation[] = []
@@ -481,10 +481,10 @@ export default function CameraManager() {
                             fontSize: 11,
                             color: '#dbeafe'
                           }}>
-                            <div style={{ marginBottom: 3 }}>Finger: PIP-Winkel / Streckung</div>
+                            <div style={{ marginBottom: 3 }}>Finger: PIP / DIP / Streckung</div>
                             {fingerReadings[index].map(reading => (
                               <div key={reading.finger}>
-                                {reading.finger}: {reading.pipAngleDegrees}° / {reading.reachPercent}%
+                                {reading.finger}: {reading.pipAngleDegrees}° / {reading.dipAngleDegrees}° / {reading.reachPercent}%
                               </div>
                             ))}
                           </div>
