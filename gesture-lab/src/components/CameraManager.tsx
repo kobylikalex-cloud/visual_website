@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import DebugEvaluationPanel from './DebugEvaluationPanel'
 import { RecognitionComparison, type ComparisonRow } from '../evaluation/RecognitionComparison'
 import { LocalEvaluation } from '../evaluation/LocalEvaluation'
+import type { TrackingFrame } from '../control/types'
 import {
   DrawingUtils,
   FilesetResolver,
@@ -28,7 +29,13 @@ const MODEL_PATH = '/models/hand_landmarker.task'
 const WASM_PATH = '/mediapipe'
 const TRACKING_INTERVAL_MS = 50
 
-export default function CameraManager() {
+type CameraManagerProps = {
+  onFrame?: (frame: TrackingFrame) => void
+  onInactive?: () => void
+  onDebugChange?: (enabled: boolean) => void
+}
+
+export default function CameraManager({ onFrame, onInactive, onDebugChange }: CameraManagerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -55,6 +62,12 @@ export default function CameraManager() {
   const [fingerReadings, setFingerReadings] = useState<FingerExtensionReading[][]>([])
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [comparisonRows, setComparisonRows] = useState<ComparisonRow[]>([])
+  const [cameraName, setCameraName] = useState('Laptop camera')
+  const callbacksRef = useRef({ onFrame, onInactive, onDebugChange })
+
+  useEffect(() => {
+    callbacksRef.current = { onFrame, onInactive, onDebugChange }
+  }, [onFrame, onInactive, onDebugChange])
 
   // Stop camera, inference loop and MediaPipe resources.
   const releaseResources = useCallback(() => {
@@ -87,6 +100,7 @@ export default function CameraManager() {
     orientationFiltersRef.current.clear()
     comparison.reset()
     evaluation.stop()
+    callbacksRef.current.onInactive?.()
   }, [comparison, evaluation])
 
   // Invalidate pending camera startup before releasing resources on unmount.
@@ -191,6 +205,16 @@ export default function CameraManager() {
           previous === handCount ? previous : handCount
         )
 
+        callbacksRef.current.onFrame?.({
+          timestampMs: now,
+          evaluationOnly: evaluation.recording,
+          detections: result.landmarks.map((landmarks, index) => ({
+            landmarks,
+            worldLandmarks: result.worldLandmarks[index] ?? [],
+            handedness: result.handedness[index]?.[0]?.categoryName,
+          })),
+        })
+
         const context = canvas.getContext('2d')
 
         if (context) {
@@ -259,6 +283,7 @@ export default function CameraManager() {
     setOrientations([])
     setFingerReadings([])
     setComparisonRows([])
+    callbacksRef.current.onInactive?.()
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -288,6 +313,7 @@ export default function CameraManager() {
       }
 
       streamRef.current = stream
+      setCameraName(stream.getVideoTracks()[0]?.label || 'Laptop camera')
       video.srcObject = stream
 
       await video.play()
@@ -372,6 +398,7 @@ export default function CameraManager() {
 
     debugRef.current = next
     setDebugEnabled(next)
+    callbacksRef.current.onDebugChange?.(next)
 
     if (!next) {
       evaluation.stop()
@@ -387,8 +414,9 @@ export default function CameraManager() {
   }
 
   return (
-    <section style={{ maxWidth: 780, margin: '0 auto' }}>
+    <section className="camera-manager" data-debug={debugEnabled}>
       <div style={{
+        display: debugEnabled ? 'block' : 'none',
         background: '#080d17',
         border: '1px solid #334155',
         borderRadius: 16,
@@ -475,7 +503,7 @@ export default function CameraManager() {
                 ? 'Keine Hand erkannt'
                 : handPoses.map((pose, index) => (
                     <div key={index} style={{ marginBottom: 6 }}>
-                        Hand {index + 1}: <strong>{pose}</strong>
+                        Hand {index + 1} (A baseline): <strong>{pose}</strong>
                         <div style={{ fontSize: 12, marginTop: 3 }}>
                           Ausrichtung: <strong>{
                             orientations[index] === 'UPRIGHT_LIKE'
@@ -538,25 +566,25 @@ export default function CameraManager() {
         </div>
       </div>
 
-      <div style={{
+      <div className="camera-buttons" style={{
         display: 'flex',
         justifyContent: 'center',
         flexWrap: 'wrap',
         gap: 12,
-        marginTop: 24
+        marginTop: debugEnabled ? 16 : 0
       }}>
         <button
           onClick={startCamera}
           disabled={status === 'loading' || status === 'active'}
         >
-          Kamera starten
+          {status === 'loading' ? 'Starting camera…' : 'Start camera'}
         </button>
 
         <button
           onClick={stopCamera}
           disabled={status === 'idle' || status === 'error'}
         >
-          Kamera stoppen
+          Stop camera
         </button>
 
         <button onClick={toggleDebug}>
@@ -564,11 +592,14 @@ export default function CameraManager() {
         </button>
       </div>
 
+      {status === 'active' && <p className="camera-source">{cameraName} · local processing</p>}
+
       {debugEnabled && <DebugEvaluationPanel
         rows={comparisonRows}
         session={evaluation}
         comparison={comparison}
         cameraActive={status === 'active'}
+        onEvaluationStart={() => callbacksRef.current.onInactive?.()}
       />}
 
       {status === 'loading' && (
