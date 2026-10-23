@@ -106,14 +106,12 @@ test('rejects implausible jumps, excessive counts, and stale or nonmonotonic fra
   }
 })
 
-test('malformed, sparse and degenerate geometry never produces usable hands', () => {
+test('malformed coordinates and collapsed image palms cannot be tracked', () => {
   for (const mutate of [
     (d: Detection) => { d.landmarks = [] },
     (d: Detection) => { d.worldLandmarks[8].x = NaN },
     (d: Detection) => { delete d.landmarks[8] },
-    (d: Detection) => { d.worldLandmarks[8] = { ...d.worldLandmarks[7] } },
     (d: Detection) => { d.landmarks = d.landmarks.map(() => ({ x: 0.5, y: 0.5, z: 0 })) },
-    (d: Detection) => { d.worldLandmarks[9] = { ...d.worldLandmarks[0] } },
   ]) {
     const bad = detection(0.5)
     mutate(bad)
@@ -121,6 +119,36 @@ test('malformed, sparse and degenerate geometry never produces usable hands', ()
     assert.equal(result.ambiguous, true)
     assert.deepEqual(result.hands, [])
   }
+})
+
+test('uncertain finger geometry keeps tracked palm but cannot authorize gesture actions', () => {
+  const collapsedTip = detection(0.5)
+  collapsedTip.worldLandmarks[8] = { ...collapsedTip.worldLandmarks[7] }
+  const tracker = new HandTracker()
+  const uncertain = tracker.update({ timestampMs: 0, detections: [collapsedTip] })
+  assert.equal(uncertain.ambiguous, false)
+  assert.equal(uncertain.hands.length, 1)
+  assert.equal(uncertain.hands[0].pose, 'UNKNOWN')
+
+  const recovered = tracker.update({ timestampMs: 50, detections: [detection(0.5)] })
+  assert.equal(recovered.hands[0].id, uncertain.hands[0].id)
+  assert.equal(recovered.hands[0].pose, 'OPEN')
+})
+
+test('fingertip leaving image boundaries does not destroy visible palm tracking', () => {
+  const partiallyOccluded = detection(0.5)
+  partiallyOccluded.landmarks[8].x = 1.06
+  const result = new HandTracker().update({ timestampMs: 0, detections: [partiallyOccluded] })
+  assert.equal(result.ambiguous, false)
+  assert.equal(result.hands.length, 1)
+})
+
+test('unusable world palm orientation yields no known orientation for control', () => {
+  const bad = detection(0.5)
+  bad.worldLandmarks[9] = { ...bad.worldLandmarks[0] }
+  const result = new HandTracker().update({ timestampMs: 0, detections: [bad] })
+  assert.equal(result.hands.length, 1)
+  assert.equal(result.hands[0].orientation, 'TRANSITION')
 })
 
 test('reset clears tracking while preserving uniqueness across resets', () => {
