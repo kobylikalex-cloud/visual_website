@@ -101,7 +101,11 @@ export class HandPoseStabilizer {
   private candidate: HandPose | null = null
   private candidateSince = 0
 
-  constructor(private readonly confirmMs = 150) {}
+  private readonly confirmMs: number
+
+  constructor(confirmMs = 150) {
+    this.confirmMs = confirmMs
+  }
 
   update(raw: HandPose, timestampMs: number): HandPose {
     if (raw === this.stable) {
