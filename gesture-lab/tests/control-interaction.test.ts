@@ -248,11 +248,11 @@ test('one upright hand among two cannot silently become a pointer or fist gestur
 
 test('pointer mirrors and clamps active area, uses elapsed-time smoothing and a normalized dead zone', () => {
   const pointer = new PointerController(defaults)
-  assert.deepEqual(pointer.update({ x: .15, y: .15 }, 0, { width: 1000, height: 800 }), { x: 1000, y: 0 })
+  assert.deepEqual(pointer.update({ x: .08, y: .08 }, 0, { width: 1000, height: 800 }), { x: 1000, y: 0 })
   pointer.reset()
   assert.deepEqual(pointer.update({ x: .5, y: .5 }, 0, { width: 1000, height: 800 }), { x: 500, y: 400 })
   const moved = pointer.update({ x: .43, y: .5 }, 80, { width: 1000, height: 800 })
-  assert.ok(moved.x > 540 && moved.x < 547)
+  assert.ok(moved.x > 535 && moved.x < 539)
   pointer.reset(); pointer.update({ x: .5, y: .5 }, 0, { width: 1000, height: 800 })
   assert.deepEqual(pointer.update({ x: .501, y: .501 }, 80, { width: 1000, height: 800 }), { x: 500, y: 400 })
 })
