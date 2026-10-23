@@ -139,7 +139,7 @@ export class InteractionEngine {
       const target = frame.targets.find(target => target.id === bridge.targetId && target.kind === bridge.kind && !target.disabled)
       if (now >= bridge.deadlineMs || bridge.handId !== hand.id || !target ||
         distanceToTarget(raw, target) > this.config.targetExitRadius ||
-        Math.hypot(raw.x - bridge.origin.x, raw.y - bridge.origin.y) > this.config.targetExitRadius) return this.stop('Closing transition cancelled')
+        Math.hypot(raw.x - bridge.origin.x, raw.y - bridge.origin.y) > this.config.maxClickMotion) return this.stop('Closing transition cancelled')
       this.armed = false; this.openSince = null; this.scroll.reset()
       this.snapshot = { ...empty('Waiting for confirmed fist', 'GRASP_PENDING'), focusId: bridge.targetId }
       return this.snapshot
@@ -156,7 +156,7 @@ export class InteractionEngine {
       const target = frame.targets.find(target => target.id === bridge.targetId && target.kind === bridge.kind && !target.disabled)
       if (frame.hands.length !== 1 || hand.id !== bridge.handId || hand.pose !== 'FIST' || hand.orientation !== 'UPRIGHT_LIKE' ||
         now >= bridge.deadlineMs || !target || distanceToTarget(raw, target) > this.config.targetExitRadius ||
-        Math.hypot(raw.x - bridge.origin.x, raw.y - bridge.origin.y) > this.config.targetExitRadius) return this.stop('Closing transition cancelled')
+        Math.hypot(raw.x - bridge.origin.x, raw.y - bridge.origin.y) > this.config.maxClickMotion) return this.stop('Closing transition cancelled')
       // Only the first actual FIST frame starts the complete confirmation interval.
       this.grasp = { targetId: bridge.targetId, kind: bridge.kind, since: now, origin: raw,
         last: this.pointer.update(hand.center, now, frame.viewport), confirmed: false }
@@ -203,7 +203,7 @@ export class InteractionEngine {
       const target = frame.targets.find(target => target.id === selection.focusId && !target.disabled)
       if (!target || !this.selector.isLocked(now)) return this.stop('Target not stable')
       if (target.kind === 'click' && this.lastOpenPoint !== null &&
-        Math.hypot(raw.x - this.lastOpenPoint.x, raw.y - this.lastOpenPoint.y) > this.config.targetExitRadius) return this.stop('Click motion cancelled')
+        Math.hypot(raw.x - this.lastOpenPoint.x, raw.y - this.lastOpenPoint.y) > this.config.maxClickMotion) return this.stop('Click motion cancelled')
       this.grasp = { targetId: target.id, kind: target.kind, since: now, origin: raw, last: this.pointer.update(hand.center, now, frame.viewport), confirmed: false }
       this.armed = false
     }
@@ -212,7 +212,7 @@ export class InteractionEngine {
     if (!target) return this.stop('Grasp target unavailable')
     const raw = this.pointer.project(hand.center, frame.viewport)
     if (grasp.kind === 'click' && (distanceToTarget(raw, target) > this.config.targetExitRadius ||
-      Math.hypot(raw.x - grasp.origin.x, raw.y - grasp.origin.y) > this.config.targetExitRadius)) return this.stop('Click motion cancelled')
+      Math.hypot(raw.x - grasp.origin.x, raw.y - grasp.origin.y) > this.config.maxClickMotion)) return this.stop('Click motion cancelled')
     const pointer = this.pointer.update(hand.center, now, frame.viewport)
     if (!grasp.confirmed && now - grasp.since < this.config.graspConfirmationMs) {
       this.snapshot = { ...empty('Confirming fist', 'GRASP_PENDING'), pointer, focusId: grasp.targetId }

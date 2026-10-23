@@ -2,6 +2,7 @@ import { DEFAULT_GESTURE_CONFIG, type GestureConfig } from './GestureConfig.ts'
 import type { Detection, Point2, TrackedHand, TrackingFrame, TrackingResult } from './types.ts'
 import { hasValidHandLandmarks } from '../gestures/TrackingQuality.ts'
 import { recognizeControlHand } from './ControlRecognition.ts'
+import { recognizeCalibratedHand, type GestureProfile } from './GestureProfile.ts'
 
 const distance = (a: Point2, b: Point2): number => Math.hypot(a.x - b.x, a.y - b.y)
 
@@ -45,8 +46,10 @@ export class HandTracker {
   private previous: TrackedHand[] = []
   private lastTimestamp: number | null = null
   private nextId = 1
+  private readonly profile: GestureProfile | null
 
-  constructor(config: GestureConfig = DEFAULT_GESTURE_CONFIG) {
+  constructor(config: GestureConfig = DEFAULT_GESTURE_CONFIG, profile: GestureProfile | null = null) {
+    this.profile = profile
     this.config = { ...config }
     for (const key of ['freshnessMs', 'trackMatchDistance', 'trackAmbiguityMargin', 'crossingDistance'] as const) {
       if (!Number.isFinite(config[key]) || config[key] < 0) throw new RangeError(`Invalid ${key}`)
@@ -105,7 +108,8 @@ export class HandTracker {
     const hands = frame.detections.map((detection, index): TrackedHand => ({
       id: assignment[index] < 0 ? this.nextId++ : this.previous[assignment[index]].id,
       center: validCenters[index],
-      ...recognizeControlHand(detection.worldLandmarks),
+      ...(this.profile ? recognizeCalibratedHand(detection.worldLandmarks, this.profile)
+        : recognizeControlHand(detection.worldLandmarks)),
       timestampMs: timestamp,
     }))
     // Return raw recognition uncertainty; confirmation belongs to the action state machine.

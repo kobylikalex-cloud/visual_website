@@ -5,6 +5,10 @@ import GesturePlayground from './components/GesturePlayground'
 import { PlaygroundController } from './control/PlaygroundController'
 import { DEFAULT_GESTURE_CONFIG, type GestureConfig } from './control/GestureConfig'
 import { calibratePointer, constrainCardPosition } from './control/MovementCalibration'
+import {
+  buildGestureProfile, readCalibrationSample,
+  type CalibrationLabel, type CalibrationSample, type CalibrationRecordings,
+} from './control/GestureProfile'
 import type { InteractionSnapshot, InteractionTarget, Point2, TrackingFrame } from './control/types'
 
 export default function App() {
@@ -17,6 +21,14 @@ export default function App() {
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [config, setConfig] = useState<GestureConfig>({ ...DEFAULT_GESTURE_CONFIG })
   const [calibrationMessage, setCalibrationMessage] = useState('Point with one upright open hand, then center your comfortable reach.')
+  const [gestureCalibrationMessage, setGestureCalibrationMessage] = useState('Record your own upright palm, closed fist and flat palm to rebaseline recognition.')
+  const capturesRef = useRef<CalibrationRecordings>({ OPEN_UPRIGHT: [], FIST: [], OPEN_FLAT: [] })
+  const activeCaptureRef = useRef<{ label: CalibrationLabel; starts: number; ends: number; samples: CalibrationSample[] } | null>(null)
+  const [captureLabel, setCaptureLabel] = useState<CalibrationLabel | null>(null)
+  const [calibrated, setCalibrated] = useState(false)
+  const [capturedCounts, setCapturedCounts] = useState<Record<CalibrationLabel, number>>({
+    OPEN_UPRIGHT: 0, FIST: 0, OPEN_FLAT: 0,
+  })
 
   const activateDemo = useCallback((id: string) => {
     if (id === 'reset') {
@@ -41,6 +53,8 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<InteractionSnapshot>(() => controller.cancel())
   const lastUiPublishRef = useRef(0)
   const lastUiSnapshotRef = useRef<InteractionSnapshot | null>(null)
+  const lastDiagnosticsRef = useRef(0)
+  const [liveGestureDiagnostics, setLiveGestureDiagnostics] = useState('No tracking sample')
 
   useEffect(() => {
     controller.setEffects({ activate: activateDemo, dragBy: moveCard,
@@ -52,6 +66,36 @@ export default function App() {
   const cancel = useCallback(() => setSnapshot(controller.cancel()), [controller])
   const handleFrame = useCallback((frame: TrackingFrame) => {
     if (document.hidden || !document.hasFocus()) { cancel(); return }
+    const capturing = activeCaptureRef.current
+    if (capturing) {
+      const now = performance.now()
+      if (now >= capturing.starts && now <= capturing.ends && frame.detections.length === 1) {
+        const sample = readCalibrationSample(frame.detections[0].worldLandmarks)
+        if (sample) capturing.samples.push(sample)
+      }
+      if (now >= capturing.ends) {
+        activeCaptureRef.current = null
+        setCaptureLabel(null)
+        capturesRef.current[capturing.label] = capturing.samples
+        setCapturedCounts(previous => ({ ...previous, [capturing.label]: capturing.samples.length }))
+        const count = capturing.samples.length
+        if (count < 6) {
+          setGestureCalibrationMessage('Too few clean samples (' + count + '). Keep one whole hand visible and repeat this gesture.')
+        } else {
+          setGestureCalibrationMessage(capturing.label + ': ' + count + ' samples captured.')
+          const profile = buildGestureProfile(capturesRef.current)
+          if (profile) {
+            setSnapshot(controller.setProfile(profile))
+            setCalibrated(true)
+            setGestureCalibrationMessage('CALIBRATED: your three personal gestures are now active. Test pointing, grasping and scroll.')
+          } else if (Object.values(capturesRef.current).every(samples => samples.length >= 6)) {
+            setCalibrated(false)
+            setGestureCalibrationMessage('Calibration poses overlap or are unstable. Record three distinctly different positions again.')
+          }
+        }
+        setSnapshot(controller.setEnabled(!paused))
+      }
+    }
     const targets: InteractionTarget[] = Array.from(document.querySelectorAll<HTMLElement>('[data-gesture-target]')).flatMap(element => {
       if (!element.getClientRects().length) return []
       const rect = element.getBoundingClientRect()
@@ -73,7 +117,14 @@ export default function App() {
       lastUiSnapshotRef.current = next
       setSnapshot(next)
     }
-  }, [controller, cancel])
+    if (debugEnabled && current - lastDiagnosticsRef.current >= 200) {
+      lastDiagnosticsRef.current = current
+      const tracking = controller.getTracking()
+      const hands = tracking.hands.map(hand =>
+        `#${hand.id}: ${hand.pose} / ${hand.orientation} · palm ${(hand.center.x * 100).toFixed(0)}%, ${(hand.center.y * 100).toFixed(0)}%`)
+      setLiveGestureDiagnostics(hands.join(' | ') || tracking.reason)
+    }
+  }, [controller, cancel, paused, debugEnabled])
 
   useEffect(() => {
     let animation = 0
@@ -109,6 +160,16 @@ export default function App() {
     setSnapshot(controller.configure(next))
   }
 
+  function captureGesture(label: CalibrationLabel) {
+    // Actions are forbidden during observation and in the short settling time.
+    activeCaptureRef.current = {
+      label, starts: performance.now() + 700, ends: performance.now() + 2700, samples: [],
+    }
+    setCaptureLabel(label)
+    setGestureCalibrationMessage('Hold ' + label + ' still, with one complete hand inside the camera view…')
+    setSnapshot(controller.setEnabled(false))
+  }
+
   function centerPointer() {
     const tracking = controller.getTracking()
     const hand = tracking.hands[0]
@@ -138,6 +199,24 @@ export default function App() {
     scrollRef={scrollRef}
   >
     {debugEnabled && <section className="movement-settings" aria-label="Gesture movement calibration">
+      <h2>Personal gesture calibration</h2>
+      <p>{gestureCalibrationMessage}</p>
+      <div className="gesture-calibration-controls">
+        <button disabled={captureLabel !== null} onClick={() => captureGesture('OPEN_UPRIGHT')}>1 · Record upright OPEN</button>{' '}
+        <button disabled={captureLabel !== null} onClick={() => captureGesture('FIST')}>2 · Record closed FIST</button>{' '}
+        <button disabled={captureLabel !== null} onClick={() => captureGesture('OPEN_FLAT')}>3 · Record flat OPEN</button>
+      </div>
+      <p>{calibrated ? 'Personal recognizer active' : 'Using generic recognition until three distinct poses are recorded.'}
+        {' · '}Upright {capturedCounts.OPEN_UPRIGHT} / Fist {capturedCounts.FIST} / Flat {capturedCounts.OPEN_FLAT} samples
+      </p>
+      <button disabled={captureLabel !== null} onClick={() => {
+        activeCaptureRef.current = null
+        capturesRef.current = { OPEN_UPRIGHT: [], FIST: [], OPEN_FLAT: [] }
+        setCapturedCounts({ OPEN_UPRIGHT: 0, FIST: 0, OPEN_FLAT: 0 })
+        setCalibrated(false)
+        setSnapshot(controller.setProfile(null))
+        setGestureCalibrationMessage('Personal calibration cleared; generic recognition restored.')
+      }}>Clear gesture calibration</button>
       <h2>Movement calibration</h2>
       <p>{calibrationMessage}</p>
       <button onClick={centerPointer}>Center pointer reach</button>{' '}
@@ -147,7 +226,23 @@ export default function App() {
       <label>Scroll dead zone <input type="range" min="0.02" max="0.20" step="0.005" value={config.scrollDeadZone}
         onChange={event => applyConfig({ ...config, scrollDeadZone: Number(event.target.value) })} /> {(config.scrollDeadZone * 100).toFixed(1)}%</label>
       <p>Actions: {paused ? 'paused' : 'enabled'} · {snapshot.mode} · {snapshot.reason}</p>
+      <p><strong>ACTUAL CONTROL CLASSIFIER:</strong> {liveGestureDiagnostics}</p>
+      <p><strong>Locked target:</strong> {snapshot.focusId ?? 'none'} · Pointer: {snapshot.pointer
+        ? `${Math.round(snapshot.pointer.x)} × ${Math.round(snapshot.pointer.y)} px`
+        : 'not armed'} · The A/B diagnostic classifiers above do not trigger controls.</p>
       <p>Camera processing and calibration stay in this browser. Evaluation recording pauses all gesture actions. Escape pauses gestures immediately.</p>
     </section>}
+    {debugEnabled && snapshot.pointer && <div aria-hidden="true" style={{
+      position: 'fixed',
+      pointerEvents: 'none',
+      left: snapshot.pointer.x - 10,
+      top: snapshot.pointer.y - 10,
+      width: 20,
+      height: 20,
+      borderRadius: '50%',
+      border: '2px solid #38e8f5',
+      boxShadow: '0 0 14px #38e8f5',
+      zIndex: 99999,
+    }} />}
   </GesturePlayground>
 }

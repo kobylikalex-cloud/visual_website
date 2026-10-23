@@ -1,5 +1,6 @@
 import { DEFAULT_GESTURE_CONFIG, type GestureConfig } from './GestureConfig.ts'
 import { HandTracker } from './HandTracker.ts'
+import type { GestureProfile } from './GestureProfile.ts'
 import { InteractionEngine } from './InteractionEngine.ts'
 import type { InteractionSnapshot, InteractionTarget, Point2, TrackingFrame, TrackingResult } from './types.ts'
 
@@ -18,6 +19,7 @@ export class PlaygroundController {
   private enabled = true
   private lastTick: number | null = null
   private tracking: TrackingResult = { hands: [], ambiguous: false, reason: 'Camera off' }
+  private profile: GestureProfile | null = null
 
   constructor(effects: PlaygroundEffects = { activate() {}, dragBy() {}, scrollBy() {} }, config = DEFAULT_GESTURE_CONFIG) {
     this.effects = effects
@@ -30,7 +32,14 @@ export class PlaygroundController {
 
   configure(config: GestureConfig): InteractionSnapshot {
     this.config = { ...config }
-    this.tracker = new HandTracker(this.config)
+    this.tracker = new HandTracker(this.config, this.profile)
+    this.engine = new InteractionEngine(this.config)
+    return this.cancel()
+  }
+
+  setProfile(profile: GestureProfile | null): InteractionSnapshot {
+    this.profile = profile
+    this.tracker = new HandTracker(this.config, this.profile)
     this.engine = new InteractionEngine(this.config)
     return this.cancel()
   }
