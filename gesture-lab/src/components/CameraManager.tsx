@@ -6,7 +6,7 @@ import {
   HandLandmarker
 } from '@mediapipe/tasks-vision'
 
-import { classifyHandPose, type HandPose } from '../gestures/HandPoseEngine'
+import { classifyHandPose, HandPoseStabilizer, type HandPose } from '../gestures/HandPoseEngine'
 
 type CameraStatus = 'idle' | 'loading' | 'active' | 'error'
 
@@ -26,6 +26,7 @@ export default function CameraManager() {
   const lastVideoTimeRef = useRef(-1)
   const lastDetectionRef = useRef(0)
   const debugRef = useRef(true)
+  const poseFiltersRef = useRef(new Map<string, HandPoseStabilizer>())
 
   const [status, setStatus] = useState<CameraStatus>('idle')
   const [loadingMessage, setLoadingMessage] = useState('')
@@ -61,6 +62,7 @@ export default function CameraManager() {
 
     lastVideoTimeRef.current = -1
     lastDetectionRef.current = 0
+    poseFiltersRef.current.clear()
   }, [])
 
   // Cleanup when the component is removed.
@@ -96,7 +98,29 @@ export default function CameraManager() {
 
         const result = detector.detectForVideo(video, now)
         
-        const poses = result.worldLandmarks.map(classifyHandPose)
+        // Stabilize each hand independently, keyed by MediaPipe handedness.
+        // This avoids one uncertain frame immediately switching OPEN to UNKNOWN.
+        const visibleHands = new Set<string>()
+        const poses = result.worldLandmarks.map((landmarks, index) => {
+          const label = result.handednesses[index]?.[0]?.categoryName
+          const key = label === 'Left' || label === 'Right'
+            ? label
+            : `index-${index}`
+
+          visibleHands.add(key)
+
+          let filter = poseFiltersRef.current.get(key)
+          if (!filter) {
+            filter = new HandPoseStabilizer(150)
+            poseFiltersRef.current.set(key, filter)
+          }
+
+          return filter.update(classifyHandPose(landmarks), now)
+        })
+
+        for (const key of poseFiltersRef.current.keys()) {
+          if (!visibleHands.has(key)) poseFiltersRef.current.delete(key)
+        }
 
         setHandPoses(previous =>
             previous.length === poses.length &&
@@ -153,6 +177,7 @@ export default function CameraManager() {
         setStatus('error')
         setError('Fehler während der Handerkennung.')
         setDetectedHands(0)
+        setHandPoses([])
         return
       }
     }
@@ -169,6 +194,7 @@ export default function CameraManager() {
     setLoadingMessage('Kamera wird gestartet...')
     setError('')
     setDetectedHands(0)
+    setHandPoses([])
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -270,6 +296,7 @@ export default function CameraManager() {
     setError('')
     setLoadingMessage('')
     setDetectedHands(0)
+    setHandPoses([])
   }
 
   function toggleDebug() {
@@ -360,7 +387,7 @@ export default function CameraManager() {
               Hände erkannt: {detectedHands} / 2
             </div>
           )}
-        // NEU: Anzeige der erkannten Handhaltungen
+        {/* Debug-only pose classifications */}
         {debugEnabled && status === 'active' && (
             <div style={{
                 position: 'absolute',
