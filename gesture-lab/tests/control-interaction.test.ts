@@ -33,6 +33,39 @@ test('upright open requires continuous confirmation and stable focus before a de
   assert.equal(engine.update(frame(650, [hand(650, 'FIST')])).clickId, null)
 })
 
+test('a single uncertain frame pauses effects without destroying locked pointer focus', () => {
+  const engine = new InteractionEngine()
+  open(engine)
+  const uncertain = engine.update(frame(350, [hand(350, 'UNKNOWN')]))
+  assert.equal(uncertain.clickId, null)
+  assert.equal(uncertain.scrollVelocity, 0)
+  assert.equal(uncertain.focusId, 'button')
+  const recovered = engine.update(frame(400, [hand(400)]))
+  assert.equal(recovered.focusId, 'button')
+  assert.equal(recovered.clickId, null)
+  // A new complete OPEN confirmation must precede any gesture action.
+  const premature = engine.update(frame(450, [hand(450, 'FIST')]))
+  assert.equal(premature.clickId, null)
+  assert.notEqual(premature.mode, 'GRABBING')
+})
+
+test('brief orientation uncertainty preserves visual focus but never arms an action', () => {
+  const engine = new InteractionEngine()
+  open(engine)
+  const paused = engine.update(frame(350, [hand(350, 'OPEN', 'TRANSITION')]))
+  assert.equal(paused.mode, 'UNCERTAIN')
+  assert.equal(paused.focusId, 'button')
+  assert.equal(paused.pointer, null)
+  for (const t of [400, 450, 500]) {
+    const snapshot = engine.update(frame(t, [hand(t)]))
+    assert.equal(snapshot.clickId, null)
+  }
+  assert.equal(engine.update(frame(550, [hand(550)])).mode, 'POINTER')
+  assert.equal(engine.update(frame(600, [hand(600, 'OPEN', 'TRANSITION')])).scrollVelocity, 0)
+  // Prolonged uncertainty expires safely.
+  assert.equal(engine.update(frame(800, [hand(800, 'OPEN', 'TRANSITION')])).focusId, null)
+})
+
 test('starting closed, unknown pose, transition orientation, and interrupted open never authorize clicks', () => {
   const engine = new InteractionEngine()
   for (const t of [0, 100, 200, 300]) assert.equal(engine.update(frame(t, [hand(t, 'FIST')])).clickId, null)
