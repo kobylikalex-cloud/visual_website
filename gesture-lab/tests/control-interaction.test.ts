@@ -167,6 +167,15 @@ test('single flat hand confirms independently, captures entry neutral and scroll
   assert.equal(engine.update(frame(430, [hand(430, 'OPEN', 'FLAT_LIKE', .5, .1)])).scrollVelocity, 0)
 })
 
+test('conservative scroll defaults ignore neutral jitter and stop instantly when returning', () => {
+  const engine = new InteractionEngine()
+  for (const t of [0, 60, 120, 180]) engine.update(frame(t, [hand(t, 'OPEN', 'FLAT_LIKE')]))
+  assert.equal(engine.update(frame(230, [hand(230, 'OPEN', 'FLAT_LIKE', .5, .58)])).scrollVelocity, 0)
+  const move = engine.update(frame(280, [hand(280, 'OPEN', 'FLAT_LIKE', .5, .75)]))
+  assert.ok(move.scrollVelocity > 0 && move.scrollVelocity < defaults.maxScrollSpeed)
+  assert.equal(engine.update(frame(330, [hand(330, 'OPEN', 'FLAT_LIKE')])).scrollVelocity, 0)
+})
+
 test('two flat hands require independent confirmation and same nonzero direction, then average times three', () => {
   const engine = new InteractionEngine()
   const pair = (t: number, y1 = .5, y2 = .5) => frame(t, [hand(t, 'OPEN', 'FLAT_LIKE', .3, y1), hand(t, 'OPEN', 'FLAT_LIKE', .7, y2, 2)])
