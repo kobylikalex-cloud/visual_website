@@ -5,7 +5,7 @@ import { classifyHandOrientation, getHandOrientationMetrics } from '../gestures/
 import { getFingerFeatures } from '../gestures/FingerGeometry.ts'
 
 /** Control-only interpretation; the original A/B classifiers remain unchanged.
- * Reuse the observed hybrid PIP/reach bands, requiring all four fingers to agree.
+ * Reuse observed PIP/reach bands, requiring 3/4 agreement without contradictory fingers.
  * DIP is measured for validity, but is not a hard veto: recorded fists had DIP 127–128°.
  */
 export function recognizeControlHand(worldLandmarks: Point3D[]): { pose: HandPose; orientation: HandOrientation } {
@@ -14,12 +14,16 @@ export function recognizeControlHand(worldLandmarks: Point3D[]): { pose: HandPos
   const metrics = getHandOrientationMetrics(worldLandmarks)
   if (!metrics) return { pose: 'UNKNOWN', orientation: 'TRANSITION' }
 
-  const extended = features.every(({ pipAngleDegrees: angle, reachPercent: reach }) =>
-    (angle >= 145 && reach >= 65) || (angle >= 100 && reach >= 70))
-  const curled = features.every(({ pipAngleDegrees: angle, reachPercent: reach }) =>
-    angle <= 135 && reach <= 58)
+  // One noisy or occluded finger should not reject an otherwise clear hand.
+  // A directly contradictory finger always vetoes the gesture.
+  const extended = features.filter(({ pipAngleDegrees: angle, reachPercent: reach }) =>
+    (angle >= 145 && reach >= 65) || (angle >= 100 && reach >= 70)).length
+  const curled = features.filter(({ pipAngleDegrees: angle, reachPercent: reach }) =>
+    angle <= 135 && reach <= 58).length
   return {
-    pose: extended ? 'OPEN' : curled ? 'FIST' : 'UNKNOWN',
+    pose: extended >= 3 && curled === 0 ? 'OPEN'
+      : curled >= 3 && extended === 0 ? 'FIST'
+      : 'UNKNOWN',
     orientation: classifyHandOrientation(metrics),
   }
 }

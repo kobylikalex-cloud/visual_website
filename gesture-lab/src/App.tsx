@@ -39,10 +39,14 @@ export default function App() {
 
   const [controller] = useState(() => new PlaygroundController())
   const [snapshot, setSnapshot] = useState<InteractionSnapshot>(() => controller.cancel())
+  const lastUiPublishRef = useRef(0)
+  const lastUiSnapshotRef = useRef<InteractionSnapshot | null>(null)
 
   useEffect(() => {
     controller.setEffects({ activate: activateDemo, dragBy: moveCard,
-      scrollBy: deltaY => scrollRef.current?.scrollBy({ top: deltaY, behavior: 'instant' }) })
+      // Gesture scrolling navigates the webpage, not only the small journal.
+      // The journal itself remains independently mouse/keyboard-scrollable.
+      scrollBy: deltaY => window.scrollBy({ top: deltaY, behavior: 'instant' }) })
   }, [controller, activateDemo, moveCard])
 
   const cancel = useCallback(() => setSnapshot(controller.cancel()), [controller])
@@ -57,7 +61,18 @@ export default function App() {
         rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
         disabled: element.matches(':disabled, [aria-disabled="true"]') }]
     })
-    setSnapshot(controller.update(frame, targets, { width: window.innerWidth, height: window.innerHeight }, performance.now()))
+    const current = performance.now()
+    const next = controller.update(frame, targets, { width: window.innerWidth, height: window.innerHeight }, current)
+    const prior = lastUiSnapshotRef.current
+    // MediaPipe runs at most ~20 Hz. Avoid re-rendering the entire page for
+    // every minor landmark movement; CSS interpolates proximity between UI updates.
+    const stateChanged = !prior || prior.mode !== next.mode ||
+      prior.focusId !== next.focusId || prior.reason !== next.reason
+    if (stateChanged || current - lastUiPublishRef.current >= 100) {
+      lastUiPublishRef.current = current
+      lastUiSnapshotRef.current = next
+      setSnapshot(next)
+    }
   }, [controller, cancel])
 
   useEffect(() => {
@@ -127,9 +142,9 @@ export default function App() {
       <p>{calibrationMessage}</p>
       <button onClick={centerPointer}>Center pointer reach</button>{' '}
       <button onClick={() => { applyConfig({ ...DEFAULT_GESTURE_CONFIG }); setCalibrationMessage('Default movement restored.') }}>Restore defaults</button>
-      <label>Scroll speed <input type="range" min="250" max="900" step="50" value={config.maxScrollSpeed}
+      <label>Scroll speed <input type="range" min="100" max="900" step="50" value={config.maxScrollSpeed}
         onChange={event => applyConfig({ ...config, maxScrollSpeed: Number(event.target.value) })} /> {config.maxScrollSpeed} px/s</label>
-      <label>Scroll dead zone <input type="range" min="0.02" max="0.09" step="0.005" value={config.scrollDeadZone}
+      <label>Scroll dead zone <input type="range" min="0.02" max="0.20" step="0.005" value={config.scrollDeadZone}
         onChange={event => applyConfig({ ...config, scrollDeadZone: Number(event.target.value) })} /> {(config.scrollDeadZone * 100).toFixed(1)}%</label>
       <p>Actions: {paused ? 'paused' : 'enabled'} · {snapshot.mode} · {snapshot.reason}</p>
       <p>Camera processing and calibration stay in this browser. Evaluation recording pauses all gesture actions. Escape pauses gestures immediately.</p>

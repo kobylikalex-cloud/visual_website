@@ -46,6 +46,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
   const sessionRef = useRef(0)
   const lastVideoTimeRef = useRef(-1)
   const lastDetectionRef = useRef(0)
+  const performanceWindowRef = useRef({ startedAt: 0, frames: 0, inferenceMs: 0 })
   const debugRef = useRef(false)
   const poseFiltersRef = useRef(new Map<string, HandPoseStabilizer>())
   const orientationFiltersRef = useRef(new Map<string, HandOrientationStabilizer>())
@@ -63,6 +64,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [comparisonRows, setComparisonRows] = useState<ComparisonRow[]>([])
   const [cameraName, setCameraName] = useState('Laptop camera')
+  const [performanceStats, setPerformanceStats] = useState<{ framesPerSecond: number; inferenceMs: number } | null>(null)
   const callbacksRef = useRef({ onFrame, onInactive, onDebugChange })
 
   useEffect(() => {
@@ -96,6 +98,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
 
     lastVideoTimeRef.current = -1
     lastDetectionRef.current = 0
+    performanceWindowRef.current = { startedAt: 0, frames: 0, inferenceMs: 0 }
     poseFiltersRef.current.clear()
     orientationFiltersRef.current.clear()
     comparison.reset()
@@ -137,6 +140,18 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
         const inferenceStart = performance.now()
         const result = detector.detectForVideo(video, now)
         const inferenceMs = performance.now() - inferenceStart
+        // Aggregate one-second performance samples; avoids per-frame React updates.
+        const perfWindow = performanceWindowRef.current
+        if (perfWindow.startedAt === 0) perfWindow.startedAt = now
+        perfWindow.frames++
+        perfWindow.inferenceMs += inferenceMs
+        if (now - perfWindow.startedAt >= 1000) {
+          if (debugRef.current) setPerformanceStats({
+            framesPerSecond: Math.round(perfWindow.frames * 1000 / (now - perfWindow.startedAt)),
+            inferenceMs: Math.round((perfWindow.inferenceMs / perfWindow.frames) * 10) / 10,
+          })
+          performanceWindowRef.current = { startedAt: now, frames: 0, inferenceMs: 0 }
+        }
         
         // Stabilize each hand independently, keyed by MediaPipe handedness.
         // Known poses require confirmation; uncertainty immediately clears pose output.
@@ -283,6 +298,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
     setOrientations([])
     setFingerReadings([])
     setComparisonRows([])
+    setPerformanceStats(null)
     callbacksRef.current.onInactive?.()
 
     try {
@@ -391,6 +407,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
     setOrientations([])
     setFingerReadings([])
     setComparisonRows([])
+    setPerformanceStats(null)
   }
 
   function toggleDebug() {
@@ -499,6 +516,11 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
                 fontSize: 14,
                 textAlign: 'left'
             }}>
+                <div style={{ fontSize: 12, marginBottom: 7, color: '#93c5fd' }}>
+                  {performanceStats
+                    ? `Tracking: ${performanceStats.framesPerSecond} Frames/s · MediaPipe: ${performanceStats.inferenceMs} ms/Frame`
+                    : 'Tracking-Performance wird gemessen…'}
+                </div>
                 {handPoses.length === 0
                 ? 'Keine Hand erkannt'
                 : handPoses.map((pose, index) => (

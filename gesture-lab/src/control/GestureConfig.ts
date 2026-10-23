@@ -11,8 +11,8 @@ export const DEFAULT_GESTURE_CONFIG = {
   trackMatchDistance: 0.18,
   trackAmbiguityMargin: 0.035,
   crossingDistance: 0.12,
-  pointerSmoothingMs: 80,
-  pointerDeadZone: 0.004,
+  pointerSmoothingMs: 140,
+  pointerDeadZone: 0.007,
   pointerMinX: 0.15,
   pointerMaxX: 0.85,
   pointerMinY: 0.15,
@@ -21,9 +21,9 @@ export const DEFAULT_GESTURE_CONFIG = {
   targetExitRadius: 90,
   targetSwitchMargin: 18,
   targetLockMs: 150,
-  scrollDeadZone: 0.035,
+  scrollDeadZone: 0.12,
   scrollRange: 0.20,
-  maxScrollSpeed: 650,
+  maxScrollSpeed: 200,
   twoHandMultiplier: 3,
 }
 export type GestureConfig = typeof DEFAULT_GESTURE_CONFIG

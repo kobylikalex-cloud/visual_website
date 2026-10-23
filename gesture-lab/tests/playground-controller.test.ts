@@ -90,7 +90,7 @@ test('late inference, evaluation recording, pause and unseen fists cannot trigge
 test('scroll effects integrate elapsed time and stop on no-hand or watchdog expiry', () => {
   const { controller, feed, scrolls } = setup()
   for (let t = 0; t <= 250; t += 50) feed(t, [detection(0.5, 0.5, false, true)])
-  feed(300, [detection(0.5, 0.62, false, true)])
+  feed(300, [detection(0.5, 0.66, false, true)])
   controller.tick(300)
   controller.tick(316)
   assert.ok(scrolls.some(value => value > 0))
@@ -104,7 +104,7 @@ test('scroll effects integrate elapsed time and stop on no-hand or watchdog expi
 test('canceling for an evaluation-start event stops scroll before another camera frame', () => {
   const { controller, feed, scrolls } = setup()
   for (let t = 0; t <= 250; t += 50) feed(t, [detection(0.5, 0.5, false, true)])
-  feed(300, [detection(0.5, 0.62, false, true)])
+  feed(300, [detection(0.5, 0.66, false, true)])
   controller.tick(300)
   controller.tick(316)
   assert.ok(scrolls.length > 0)

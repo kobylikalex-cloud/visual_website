@@ -1,30 +1,33 @@
 import { DEFAULT_GESTURE_CONFIG, type GestureConfig } from './GestureConfig.ts'
 import type { Detection, Point2, TrackedHand, TrackingFrame, TrackingResult } from './types.ts'
 import { hasValidHandLandmarks } from '../gestures/TrackingQuality.ts'
-import { getFingerFeatures } from '../gestures/FingerGeometry.ts'
-import { getHandOrientationMetrics } from '../gestures/HandOrientationDiagnostics.ts'
 import { recognizeControlHand } from './ControlRecognition.ts'
 
 const distance = (a: Point2, b: Point2): number => Math.hypot(a.x - b.x, a.y - b.y)
 
 function palmCenter(detection: Detection): Point2 | null {
+  // Tracking position and finger recognition are distinct. A bad/occluded
+  // fingertip can make the gesture UNKNOWN but must not erase a visible palm.
   if (!detection || !hasValidHandLandmarks(detection.landmarks) ||
-      !hasValidHandLandmarks(detection.worldLandmarks) ||
-      !getFingerFeatures(detection.worldLandmarks) ||
-      !getHandOrientationMetrics(detection.worldLandmarks)) return null
+      !hasValidHandLandmarks(detection.worldLandmarks)) return null
 
   const points = detection.landmarks
-  if (points.some(p => p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1)) return null
+  const palm = [points[0], points[5], points[9], points[13], points[17]]
+  // Fingers can leave the camera bounds while the palm remains in view.
+  // Reject only the palm moving outside the image, not individual fingertips.
+  if (palm.some(p => p.x < -0.04 || p.x > 1.04 || p.y < -0.04 || p.y > 1.04)) return null
   const wrist = points[0]
   const long = { x: points[9].x - wrist.x, y: points[9].y - wrist.y }
   const across = { x: points[17].x - points[5].x, y: points[17].y - points[5].y }
-  // A collapsed/edge-on image palm has no reliable spatial identity.
-  if (Math.abs(long.x * across.y - long.y * across.x) <= 1e-8) return null
-  const palm = [points[0], points[5], points[9], points[13], points[17]]
-  return {
+  // Reject a genuinely collapsed palm, not an edge-on finger silhouette.
+  if (Math.abs(long.x * across.y - long.y * across.x) <= 1e-10) return null
+  const center = {
     x: palm.reduce((sum, point) => sum + point.x, 0) / palm.length,
     y: palm.reduce((sum, point) => sum + point.y, 0) / palm.length,
   }
+  // Controllers project this center into a [0, 1] viewport.
+  return center.x >= 0 && center.x <= 1 && center.y >= 0 && center.y <= 1
+    ? center : null
 }
 
 /** Minimum simultaneous separation along two linear frame-to-frame movements. */
