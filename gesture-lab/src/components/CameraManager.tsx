@@ -24,6 +24,16 @@ import {
 } from '../gestures/FingerExtensionDiagnostics'
 
 type CameraStatus = 'idle' | 'loading' | 'active' | 'error'
+type ResultGeometry = {
+  landmarks: { x: number; y: number; z: number }[][]
+  worldLandmarks: { x: number; y: number; z: number }[][]
+  handedness: { categoryName: string }[][]
+}
+type InferenceWorkerMessage =
+  | ({ type: 'ready'; backend: 'GPU' | 'CPU' })
+  | ({ type: 'result'; timestampMs: number; inferenceMs: number } & ResultGeometry)
+  | { type: 'skipped'; timestampMs: number }
+  | { type: 'error'; message: string }
 
 const MODEL_PATH = '/models/hand_landmarker.task'
 const WASM_PATH = '/mediapipe'
@@ -41,6 +51,8 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
 
   const streamRef = useRef<MediaStream | null>(null)
   const detectorRef = useRef<HandLandmarker | null>(null)
+  const workerRef = useRef<Worker | null>(null)
+  const workerBusyRef = useRef(false)
   const animationRef = useRef<number | null>(null)
 
   const sessionRef = useRef(0)
@@ -64,7 +76,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [comparisonRows, setComparisonRows] = useState<ComparisonRow[]>([])
   const [cameraName, setCameraName] = useState('Laptop camera')
-  const [detectorBackend, setDetectorBackend] = useState<'GPU' | 'CPU'>('CPU')
+  const [detectorBackend, setDetectorBackend] = useState('CPU / main thread')
   const [performanceStats, setPerformanceStats] = useState<{ framesPerSecond: number; inferenceMs: number } | null>(null)
   const callbacksRef = useRef({ onFrame, onInactive, onDebugChange })
 
@@ -79,6 +91,9 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
       animationRef.current = null
     }
 
+    workerRef.current?.terminate()
+    workerRef.current = null
+    workerBusyRef.current = false
     detectorRef.current?.close()
     detectorRef.current = null
 
@@ -115,32 +130,12 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
 
   useEffect(() => cleanupOnUnmount, [cleanupOnUnmount])
 
-  // Process camera frames.
-  function processFrame() {
+
+  // Shared consumption path for off-thread and legacy/main-thread inference.
+  function publishResult(result: ResultGeometry, now: number, inferenceMs: number) {
     const video = videoRef.current
     const canvas = canvasRef.current
-    const detector = detectorRef.current
-
-    if (!video || !canvas || !detector) return
-
-    const now = performance.now()
-
-    const newFrame = video.currentTime !== lastVideoTimeRef.current
-    const intervalPassed =
-      now - lastDetectionRef.current >= TRACKING_INTERVAL_MS
-
-    if (
-      video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-      newFrame &&
-      intervalPassed
-    ) {
-      try {
-        lastVideoTimeRef.current = video.currentTime
-        lastDetectionRef.current = now
-
-        const inferenceStart = performance.now()
-        const result = detector.detectForVideo(video, now)
-        const inferenceMs = performance.now() - inferenceStart
+    if (!video || !canvas) return
         // Aggregate one-second performance samples; avoids per-frame React updates.
         const perfWindow = performanceWindowRef.current
         if (perfWindow.startedAt === 0) perfWindow.startedAt = now
@@ -264,24 +259,112 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
             }
           }
         }
-      } catch (err) {
-        console.error('Hand tracking failed:', err)
+  }
 
+  // Keep only one video frame in flight. Drop old frames instead of queuing
+  // inference and acting on stale hand positions.
+  async function startInferenceWorker(requestId: number): Promise<boolean> {
+    if (typeof Worker === 'undefined' || typeof createImageBitmap !== 'function') return false
+    let worker: Worker
+    try {
+      worker = new Worker(new URL('../workers/handTracking.worker.ts', import.meta.url), { type: 'module' })
+    } catch (error) {
+      console.warn('Hand tracker worker unavailable', error)
+      return false
+    }
+    return new Promise(resolve => {
+      let initialized = false
+      let finished = false
+      const timeout = window.setTimeout(() => {
+        if (!initialized && !finished) {
+          finished = true
+          worker.terminate()
+          console.warn('Hand worker initialization timed out; falling back to main-thread GPU')
+          resolve(false)
+        }
+      }, 8000)
+      function failed(error: unknown) {
+        console.warn('Hand worker failed', error)
+        if (!initialized) {
+          if (finished) return
+          finished = true
+          window.clearTimeout(timeout)
+          worker.terminate()
+          resolve(false)
+          return
+        }
+        if (workerRef.current !== worker || requestId !== sessionRef.current) return
         sessionRef.current++
         releaseResources()
-
         setStatus('error')
-        setError('Fehler während der Handerkennung.')
-        setDetectedHands(0)
-        setHandPoses([])
-        setOrientationMetrics([])
-        setOrientations([])
-        setFingerReadings([])
-        setComparisonRows([])
-        return
+        setError('Hand-Tracking-Worker fehlgeschlagen. Kamera bitte erneut starten.')
+      }
+      worker.onerror = event => failed(event.message)
+      worker.onmessage = (event: MessageEvent<InferenceWorkerMessage>) => {
+        const message = event.data
+        if (requestId !== sessionRef.current || finished && !initialized) return
+        if (message.type === 'ready') {
+          if (finished) return
+          finished = true
+          initialized = true
+          window.clearTimeout(timeout)
+          workerRef.current = worker
+          workerBusyRef.current = false
+          setDetectorBackend(message.backend + ' / worker')
+          resolve(true)
+        } else if (message.type === 'result' || message.type === 'skipped') {
+          workerBusyRef.current = false
+          if (message.type === 'result') publishResult(message, message.timestampMs, message.inferenceMs)
+        } else if (message.type === 'error') {
+          failed(message.message)
+        }
+      }
+      worker.postMessage({ type: 'init' })
+    })
+  }
+  // Send the freshest video frame to the inference worker, or use main-thread
+  // GPU fallback when workers are unavailable.
+  function processFrame() {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    const detector = detectorRef.current
+    if (!video || !canvas || (!detector && !workerRef.current)) return
+    const now = performance.now()
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        video.currentTime !== lastVideoTimeRef.current &&
+        now - lastDetectionRef.current >= TRACKING_INTERVAL_MS &&
+        !workerBusyRef.current) {
+      lastVideoTimeRef.current = video.currentTime
+      lastDetectionRef.current = now
+      if (workerRef.current) {
+        const worker = workerRef.current
+        workerBusyRef.current = true
+        void createImageBitmap(video).then(bitmap => {
+          if (workerRef.current !== worker) {
+            bitmap.close()
+            workerBusyRef.current = false
+            return
+          }
+          worker.postMessage({ type: 'frame', bitmap, timestampMs: now }, [bitmap])
+        }).catch(error => {
+          console.warn('Video frame transfer failed', error)
+          workerBusyRef.current = false
+        })
+      } else if (detector) {
+        try {
+          const started = performance.now()
+          const result = detector.detectForVideo(video, now)
+          publishResult(result, now, performance.now() - started)
+        } catch (error) {
+          console.error('Hand tracking failed', error)
+          sessionRef.current++
+          releaseResources()
+          setStatus('error')
+          setError('Fehler während der Handerkennung.')
+          return
+        }
       }
     }
-
     animationRef.current = requestAnimationFrame(processFrame)
   }
 
@@ -339,44 +422,41 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
 
       setLoadingMessage('MediaPipe wird geladen...')
 
-      const vision = await FilesetResolver.forVisionTasks(WASM_PATH)
-
+      const workerStarted = await startInferenceWorker(requestId)
       if (requestId !== sessionRef.current) return
-
-      // CPU inference on the user's machine was measured at ~130 ms/frame,
-      // blocking React/UI for most of each second. Try GPU first and retain
-      // a working CPU fallback on devices without compatible WebGL.
-      const options = {
-        runningMode: 'VIDEO' as const,
-        numHands: 2,
-        minHandDetectionConfidence: 0.5,
-        minHandPresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
+      if (!workerStarted) {
+        setLoadingMessage('GPU-Beschleunigung auf Hauptthread wird initialisiert…')
+        const vision = await FilesetResolver.forVisionTasks(WASM_PATH)
+        if (requestId !== sessionRef.current) return
+        const options = {
+          runningMode: 'VIDEO' as const,
+          numHands: 2,
+          minHandDetectionConfidence: 0.5,
+          minHandPresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+        }
+        let detector: HandLandmarker
+        let backend = 'GPU / main thread'
+        try {
+          detector = await HandLandmarker.createFromOptions(vision, {
+            ...options,
+            baseOptions: { modelAssetPath: MODEL_PATH, delegate: 'GPU' },
+          })
+        } catch (gpuError) {
+          console.warn('GPU main-thread detection unavailable', gpuError)
+          backend = 'CPU / main thread'
+          detector = await HandLandmarker.createFromOptions(vision, {
+            ...options,
+            baseOptions: { modelAssetPath: MODEL_PATH, delegate: 'CPU' },
+          })
+        }
+        if (requestId !== sessionRef.current) {
+          detector.close()
+          return
+        }
+        setDetectorBackend(backend)
+        detectorRef.current = detector
       }
-      let detector: HandLandmarker
-      let backend: 'GPU' | 'CPU' = 'GPU'
-      try {
-        detector = await HandLandmarker.createFromOptions(vision, {
-          ...options,
-          baseOptions: { modelAssetPath: MODEL_PATH, delegate: 'GPU' },
-        })
-      } catch (gpuError) {
-        // Avoid rendering the whole app unusable if GPU acceleration is unavailable.
-        console.warn('MediaPipe GPU acceleration unavailable; using CPU fallback', gpuError)
-        backend = 'CPU'
-        detector = await HandLandmarker.createFromOptions(vision, {
-          ...options,
-          baseOptions: { modelAssetPath: MODEL_PATH, delegate: 'CPU' },
-        })
-      }
-
-      if (requestId !== sessionRef.current) {
-        detector.close()
-        return
-      }
-
-      setDetectorBackend(backend)
-      detectorRef.current = detector
 
       setStatus('active')
       setLoadingMessage('')
