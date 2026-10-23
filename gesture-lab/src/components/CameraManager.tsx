@@ -65,13 +65,13 @@ export default function CameraManager() {
     poseFiltersRef.current.clear()
   }, [])
 
-  // Cleanup when the component is removed.
-  useEffect(() => {
-    return () => {
-      sessionRef.current++
-      releaseResources()
-    }
+  // Invalidate pending camera startup before releasing resources on unmount.
+  const cleanupOnUnmount = useCallback(() => {
+    sessionRef.current++
+    releaseResources()
   }, [releaseResources])
+
+  useEffect(() => cleanupOnUnmount, [cleanupOnUnmount])
 
   // Process camera frames.
   function processFrame() {
