@@ -60,6 +60,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
   const lastDetectionRef = useRef(0)
   const performanceWindowRef = useRef({ startedAt: 0, frames: 0, inferenceMs: 0 })
   const debugRef = useRef(false)
+  const lastDebugUiRef = useRef(0)
   const poseFiltersRef = useRef(new Map<string, HandPoseStabilizer>())
   const orientationFiltersRef = useRef(new Map<string, HandOrientationStabilizer>())
   const [comparison] = useState(() => new RecognitionComparison())
@@ -115,6 +116,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
     lastVideoTimeRef.current = -1
     lastDetectionRef.current = 0
     performanceWindowRef.current = { startedAt: 0, frames: 0, inferenceMs: 0 }
+    lastDebugUiRef.current = 0
     poseFiltersRef.current.clear()
     orientationFiltersRef.current.clear()
     comparison.reset()
@@ -202,13 +204,17 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange }: Ca
 
         // Camera-relative telemetry, shown only in the debug overlay.
         if (debugRef.current) {
-          setOrientationMetrics(readings)
-          setFingerReadings(result.worldLandmarks.map(getFingerExtensionReadings))
           const rows = comparison.update(result.worldLandmarks.map((landmarks, index) => ({
             label: result.handedness[index]?.[0]?.categoryName ?? 'Unlabeled', landmarks,
           })), now)
+          // Evaluation still records EVERY inference, even with slower UI refresh.
           evaluation.record(rows, performance.now(), inferenceMs)
-          setComparisonRows(rows)
+          if (now - lastDebugUiRef.current >= 200) {
+            lastDebugUiRef.current = now
+            setOrientationMetrics(readings)
+            setFingerReadings(result.worldLandmarks.map(getFingerExtensionReadings))
+            setComparisonRows(rows)
+          }
         }
 
         const handCount = result.landmarks.length
