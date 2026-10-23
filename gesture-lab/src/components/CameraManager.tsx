@@ -7,6 +7,10 @@ import {
 } from '@mediapipe/tasks-vision'
 
 import { classifyHandPose, HandPoseStabilizer, type HandPose } from '../gestures/HandPoseEngine'
+import {
+  getHandOrientationMetrics,
+  type HandOrientationMetrics
+} from '../gestures/HandOrientationDiagnostics'
 
 type CameraStatus = 'idle' | 'loading' | 'active' | 'error'
 
@@ -33,6 +37,7 @@ export default function CameraManager() {
   const [error, setError] = useState('')
   const [detectedHands, setDetectedHands] = useState(0)
   const [handPoses, setHandPoses] = useState<HandPose[]>([])
+  const [orientationMetrics, setOrientationMetrics] = useState<(HandOrientationMetrics | null)[]>([])
   const [debugEnabled, setDebugEnabled] = useState(true)
 
   // Stop camera, inference loop and MediaPipe resources.
@@ -129,6 +134,11 @@ export default function CameraManager() {
                 : poses
         )
 
+        // Camera-relative telemetry, shown only in the debug overlay.
+        const readings = result.worldLandmarks.map(getHandOrientationMetrics)
+        if (debugRef.current) {
+          setOrientationMetrics(readings)
+        }
 
         const handCount = result.landmarks.length
         setDetectedHands(previous =>
@@ -178,6 +188,7 @@ export default function CameraManager() {
         setError('Fehler während der Handerkennung.')
         setDetectedHands(0)
         setHandPoses([])
+        setOrientationMetrics([])
         return
       }
     }
@@ -195,6 +206,7 @@ export default function CameraManager() {
     setError('')
     setDetectedHands(0)
     setHandPoses([])
+    setOrientationMetrics([])
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -297,6 +309,7 @@ export default function CameraManager() {
     setLoadingMessage('')
     setDetectedHands(0)
     setHandPoses([])
+    setOrientationMetrics([])
   }
 
   function toggleDebug() {
@@ -403,8 +416,17 @@ export default function CameraManager() {
                 {handPoses.length === 0
                 ? 'Keine Hand erkannt'
                 : handPoses.map((pose, index) => (
-                    <div key={index}>
+                    <div key={index} style={{ marginBottom: 6 }}>
                         Hand {index + 1}: <strong>{pose}</strong>
+                        {orientationMetrics[index] && (
+                          <div style={{ fontSize: 12, color: '#cbd5e1' }}>
+                            Bildneigung: {orientationMetrics[index].imageTiltDegrees}°
+                            {' · '}Tiefe: {orientationMetrics[index].depthTiltDegrees}°
+                            <div>
+                              Handfläche zur Kamera: {orientationMetrics[index].palmFacingCameraPercent}%
+                            </div>
+                          </div>
+                        )}
                     </div>
                 ))
             }
