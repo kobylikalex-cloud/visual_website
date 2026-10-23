@@ -73,9 +73,9 @@ export function classifyHandPose(
 
     if (angle === null) return 'UNKNOWN'
 
-    if (angle > 155) {
+    if (angle >= 145) {
       extended++
-    } else if (angle < 125) {
+    } else if (angle <= 125) {
       curled++
     }
   }
@@ -89,4 +89,43 @@ export function classifyHandPose(
   }
 
   return 'UNKNOWN'
+}
+
+/**
+ * Temporal filter: pose changes are committed only after the same raw
+ * classification has persisted for confirmMs milliseconds.
+ * A single noisy UNKNOWN frame must not cancel a valid OPEN or FIST.
+ */
+export class HandPoseStabilizer {
+  private stable: HandPose = 'UNKNOWN'
+  private candidate: HandPose | null = null
+  private candidateSince = 0
+
+  constructor(private readonly confirmMs = 150) {}
+
+  update(raw: HandPose, timestampMs: number): HandPose {
+    if (raw === this.stable) {
+      this.candidate = null
+      return this.stable
+    }
+
+    if (raw !== this.candidate) {
+      this.candidate = raw
+      this.candidateSince = timestampMs
+      return this.stable
+    }
+
+    if (timestampMs - this.candidateSince >= this.confirmMs) {
+      this.stable = raw
+      this.candidate = null
+    }
+
+    return this.stable
+  }
+
+  reset(): void {
+    this.stable = 'UNKNOWN'
+    this.candidate = null
+    this.candidateSince = 0
+  }
 }
