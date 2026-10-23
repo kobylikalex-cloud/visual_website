@@ -28,6 +28,6 @@ Implemented the five planned corrections without changing pointer filtering, gai
 - Independent read-only review found no actionable correctness or click-safety issues.
 - Private replay: observed held-closure window <=4300 ms, 45 samples: former control FIST 27 / UNKNOWN 18; corrected FIST 45. Reopened window >=4800 ms, 21 samples: OPEN 21 before and after. Intermediate transitions excluded. This is an exploratory, single-user sample, not a held-out accuracy estimate or an independent false-positive benchmark.
 - Same-frame device benchmark: 20 pairs after five warmups, CPU median/p95 116.9/155.9 ms; GPU 27.4/40.5 ms. The existing comparison selected GPU. The comparison itself adds latency and its aggregate FPS is not steady-state acceptance performance.
-- Live acceptance of the corrected build is pending. The earlier worker timeout remains a tracked observation; its cause has not been proven fixed by the scheduler change.
+- Live acceptance: the user tested the corrected working tree on 2026-10-23 and reported being very satisfied. This is qualitative acceptance, not a measured all-angle error rate. The earlier worker timeout remains a tracked observation; its cause has not been proven fixed by the scheduler change.
 
 Synthetic fixtures establish invariance/safety, not real-camera accuracy. Fully occluded fingers cannot be guaranteed from a single camera; UNKNOWN must remain safe. No new raw landmark data is committed. No push or merge.
