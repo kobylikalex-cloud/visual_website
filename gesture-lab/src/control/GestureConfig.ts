@@ -27,4 +27,9 @@ export const DEFAULT_GESTURE_CONFIG = {
   maxScrollSpeed: 200,
   twoHandMultiplier: 3,
 }
-export type GestureConfig = typeof DEFAULT_GESTURE_CONFIG
+export type GestureConfig = typeof DEFAULT_GESTURE_CONFIG & { pointerMode?: 'absolute' | 'relative'; pointerFilter?: 'fixed' | 'adaptive'; pointerPreview?: boolean }
+/** App opt-in; historical library defaults remain available for comparison. */
+export const TOUCHPAD_MOVEMENT_RANGE = .35
+export const TOUCHPAD_GESTURE_CONFIG: GestureConfig = { ...DEFAULT_GESTURE_CONFIG, pointerMode: 'relative', pointerFilter: 'adaptive', pointerPreview: true,
+  pointerMinX: .5-TOUCHPAD_MOVEMENT_RANGE/2, pointerMaxX: .5+TOUCHPAD_MOVEMENT_RANGE/2,
+  pointerMinY: .5-TOUCHPAD_MOVEMENT_RANGE/2, pointerMaxY: .5+TOUCHPAD_MOVEMENT_RANGE/2 }

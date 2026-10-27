@@ -31,7 +31,7 @@ export class FistClickEngine {
   clickDiagnostics: ClickDiagnostics = { pose: 'UNKNOWN', state: 'OPEN', lockedTargetId: null, targetLocked: false, progress: 0,
     validClicks: 0, rejectedAttempts: 0, lastCancellation: '', lastConfirmationMs: null, lastGestureLatencyMs: null }
 
-  constructor(config = DEFAULT_GESTURE_CONFIG, clickConfig = DEFAULT_CLICK_CONFIG) {
+  constructor(config: GestureConfig = DEFAULT_GESTURE_CONFIG, clickConfig = DEFAULT_CLICK_CONFIG) {
     this.config = { ...config }; this.clickConfig = { ...clickConfig }; this.pointer = new OpenPointerEngine(config)
     this.diagnostics = { ...this.pointer.diagnostics }
     this.snapshot = this.wrap(this.pointer.cancel('Start camera to begin.'))
@@ -39,6 +39,8 @@ export class FistClickEngine {
 
   configure(config: GestureConfig): ClickSnapshot {
     if (this.pending()) this.cancel('Calibration changed during closure')
+    else if ((Object.keys({ ...this.config, ...config }) as (keyof GestureConfig)[])
+      .some(key => key !== 'pointerGain' && config[key] !== this.config[key])) this.cancel('Movement calibration changed; confirm open palm')
     this.config = { ...config }
     return this.snapshot = this.wrap(this.pointer.configure(config))
   }
@@ -51,6 +53,13 @@ export class FistClickEngine {
     this.clickDiagnostics.state = wait ? 'WAIT_FOR_RELEASE' : 'OPEN'
     this.clickDiagnostics.progress = 0; this.clickDiagnostics.targetLocked = false; this.clickDiagnostics.lockedTargetId = null
     const result = this.pointer.cancel(reason); this.diagnostics = { ...this.pointer.diagnostics }
+    return this.snapshot = this.wrap(result)
+  }
+
+  recenterPointer(): ClickSnapshot {
+    this.cancel('Pointer recentered')
+    const result = this.pointer.recenterPointer()
+    this.diagnostics = { ...this.pointer.diagnostics }
     return this.snapshot = this.wrap(result)
   }
 
@@ -108,7 +117,14 @@ export class FistClickEngine {
       if (this.lock!.fistSince === null && now - this.lock!.started > this.clickConfig.uncertaintyMs || now - this.lock!.started > this.clickConfig.uncertaintyMs + this.clickConfig.fistConfirmationMs) return this.cancel('Closing uncertainty expired')
       return this.freeze('Hold a complete fist to confirm')
     }
-    if (this.clickDiagnostics.state === 'WAIT_FOR_RELEASE' && !this.diagnostics.confirmed) return this.freeze('Open your hand before the next click')
+    if (this.clickDiagnostics.state === 'WAIT_FOR_RELEASE' && !this.diagnostics.confirmed) {
+      if (this.config.pointerPreview && this.clickDiagnostics.pose === 'OPEN') {
+        const base = this.pointer.tick(now); this.diagnostics = { ...this.pointer.diagnostics }
+        // Preview movement cannot clear release lockout or count as OPEN dwell.
+        return this.snapshot = this.wrap(base)
+      }
+      return this.freeze('Open your hand before the next click')
+    }
     const base = this.pointer.tick(now); this.diagnostics = { ...this.pointer.diagnostics }
     return this.observeOpen(base, now)
   }

@@ -1,6 +1,6 @@
 import type { Point3D } from '../gestures/TrackingQuality.ts'
 import type { HandPose } from '../gestures/HandPoseEngine.ts'
-import type { HandOrientation } from '../gestures/HandOrientationDiagnostics.ts'
+import type { HandOrientation, HandOrientationMetrics } from '../gestures/HandOrientationDiagnostics.ts'
 
 export type Point2 = { x: number; y: number }
 export type Detection = { landmarks: Point3D[]; worldLandmarks: Point3D[]; handedness?: string }
@@ -10,6 +10,7 @@ export type TrackedHand = {
   center: Point2
   pose: HandPose
   orientation: HandOrientation
+  orientationMetrics?: HandOrientationMetrics | null
   timestampMs: number
 }
 export type TrackingResult = { hands: TrackedHand[]; ambiguous: boolean; reason: string }

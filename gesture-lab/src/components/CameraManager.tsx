@@ -5,7 +5,8 @@ import { RecognitionComparison, type ComparisonRow } from '../evaluation/Recogni
 import { LocalEvaluation } from '../evaluation/LocalEvaluation'
 import type { TrackingFrame } from '../control/types'
 import { FrameGate, TrackingPerformance, type PerformanceReport } from '../tracking/TrackingPerformance'
-import type { BackendMode, BenchmarkReport, InferenceWorkerMessage, ResultGeometry } from '../tracking/protocol'
+import type { BackendMode, BenchmarkReport, InferenceWorkerMessage, ResultGeometry, RecognitionModel } from '../tracking/protocol'
+import { isEvaluationFrame } from '../tracking/EvaluationMode'
 import {
   DrawingUtils,
   FilesetResolver,
@@ -49,6 +50,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
   const gateRef = useRef(new FrameGate())
   const metricsRef = useRef(new TrackingPerformance())
   const benchmarkingRef = useRef(false)
+  const recognitionModelRef = useRef<RecognitionModel>('landmarks')
   const benchmarkRef = useRef<BenchmarkReport | null>(null)
   const backendRef = useRef('Not initialized')
   const lastPerfPublishRef = useRef(0)
@@ -79,6 +81,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
   const [cameraName, setCameraName] = useState('Laptop camera')
   const [detectorBackend, setDetectorBackend] = useState('CPU / main thread')
   const [backendMode, setBackendMode] = useState<BackendMode>('AUTO')
+  const [recognitionModel, setRecognitionModel] = useState<RecognitionModel>('landmarks')
   const [performanceStats, setPerformanceStats] = useState<{ framesPerSecond: number; inferenceMs: number } | null>(null)
   const callbacksRef = useRef({ onFrame, onInactive, onDebugChange, onPerformance })
 
@@ -227,9 +230,12 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
         if (debugRef.current) {
           const rows = comparison.update(result.worldLandmarks.map((landmarks, index) => ({
             label: result.handedness[index]?.[0]?.categoryName ?? 'Unlabeled', landmarks,
+            imageLandmarks: result.landmarks[index],
+            imageSize: { width: videoRef.current?.videoWidth ?? 0, height: videoRef.current?.videoHeight ?? 0 },
+            learnedGestures: result.learnedGestures?.[index],
           })), now)
           // Evaluation still records EVERY inference, even with slower UI refresh.
-          evaluation.record(rows, performance.now(), inferenceMs)
+          evaluation.record(rows, performance.now(), inferenceMs, now, recognitionModelRef.current)
           if (now - lastDebugUiRef.current >= 200) {
             lastDebugUiRef.current = now
             setOrientationMetrics(readings)
@@ -245,7 +251,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
 
         callbacksRef.current.onFrame?.({
           timestampMs: now,
-          evaluationOnly: evaluation.recording || benchmarkingRef.current,
+          evaluationOnly: isEvaluationFrame(evaluation.recording, benchmarkingRef.current, recognitionModelRef.current),
           detections: result.landmarks.map((landmarks, index) => ({
             landmarks,
             worldLandmarks: result.worldLandmarks[index] ?? [],
@@ -353,11 +359,14 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
             if (message.benchmark) benchmarkRef.current = message.benchmark
             publishResult(message, message.timestampMs, message.inferenceMs)
           }
+          // Inference completion is independent of display cadence. Capture
+          // only the newest available image; FrameGate still admits one flight.
+          captureLatestFrame()
         } else if (message.type === 'error') {
           failed(message.message)
         }
       }
-      worker.postMessage({ type: 'init', mode: backendMode })
+      worker.postMessage({ type: 'init', mode: backendMode, recognitionModel: recognitionModelRef.current })
     })
   }
   // Send the freshest video frame to the inference worker, or use main-thread
@@ -381,6 +390,14 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
     if (gateRef.current.busy && now - gateRef.current.startedAt > (benchmarkingRef.current ? 10000 : 2000)) {
       sessionRef.current++; releaseResources(); setStatus('error'); setError('Tracking timed out. Restart camera.'); return
     }
+    captureLatestFrame()
+    animationRef.current = requestAnimationFrame(processFrame)
+  }
+
+  function captureLatestFrame() {
+    const video = videoRef.current, detector = detectorRef.current
+    if (!video || document.hidden || (!detector && !workerRef.current)) return
+    const now = performance.now()
     const serial = typeof video.requestVideoFrameCallback === 'function' ? videoSerialRef.current : video.currentTime
     const admission = video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
       ? gateRef.current.captureFrame(serial, now, TRACKING_INTERVAL_MS) : { token: null, busy: false }
@@ -418,13 +435,13 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
         }
       }
     }
-    animationRef.current = requestAnimationFrame(processFrame)
   }
 
   async function startCamera() {
     if (status === 'loading' || status === 'active') return
 
     const requestId = ++sessionRef.current
+    recognitionModelRef.current = recognitionModel
 
     setStatus('loading')
     setLoadingMessage('Kamera wird gestartet...')
@@ -480,6 +497,9 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
           if (requestId !== sessionRef.current) return
           metricsRef.current.camera(metadata.presentedFrames)
           videoSerialRef.current = metadata.presentedFrames
+          // Wake an idle worker on a new camera image without an extra RAF
+          // wait. Keep synchronous fallback inference on its existing RAF path.
+          if (workerRef.current) captureLatestFrame()
           videoCallbackRef.current = video.requestVideoFrameCallback(countFrame)
         }
         videoCallbackRef.current = video.requestVideoFrameCallback(countFrame)
@@ -490,6 +510,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
       const workerStarted = await startInferenceWorker(requestId)
       if (requestId !== sessionRef.current) return
       if (!workerStarted) {
+        if (recognitionModelRef.current === 'learned') throw new Error('Learned-model comparison requires the local worker. No fallback model was substituted.')
         if (backendMode === 'COMPARE') throw new Error('CPU/GPU comparison requires a supported worker. No benchmark was run.')
         setLoadingMessage('GPU-Beschleunigung auf Hauptthread wird initialisiert…')
         const vision = await FilesetResolver.forVisionTasks(WASM_PATH)
@@ -725,6 +746,13 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
         </select>
         <small>{detectorBackend}</small>
       </label>}
+      {debugEnabled && <label>Recognition model (restart camera to apply)
+        <select aria-label="Recognition model" value={recognitionModel} disabled={status === 'active' || status === 'loading'} onChange={event => setRecognitionModel(event.target.value as RecognitionModel)}>
+          <option value="landmarks">Existing geometry control</option>
+          <option value="learned">Local learned classifier comparison · actions paused</option>
+        </select>
+      </label>}
+      {status === 'active' && recognitionModel === 'learned' && <p role="status">Local learned-model evaluation · all gesture actions paused · no video recording</p>}
 
       {status === 'active' && <p className="camera-source">{cameraName} · local processing</p>}
 

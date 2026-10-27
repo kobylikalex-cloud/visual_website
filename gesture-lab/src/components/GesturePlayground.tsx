@@ -2,11 +2,13 @@ import { useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react'
 import type { InteractionSnapshot } from '../control/types'
 import type { ClickState } from '../control/FistClickEngine'
+import type { PageInteractionState } from '../control/PageGestureEngine'
 import './playground.css'
 
 export type GesturePlaygroundProps = {
   cameraControls: ReactNode
-  snapshot: InteractionSnapshot & { clickState?: ClickState }
+  snapshot: InteractionSnapshot & { clickState?: ClickState; interactionState?: PageInteractionState }
+  scrollTestPage?: boolean
   cardPosition: { x: number; y: number }
   activations: number
   buttonActivations: Record<string, number>
@@ -19,11 +21,11 @@ export type GesturePlaygroundProps = {
 }
 
 const readingSections = [
-  { title: 'One gesture at a time.', category: 'SPRINT 01', text: 'Raise one clearly open hand. Side-on and flat palms also aim. The nearest eligible target responds to proximity. A complete fist activates the locked test button once; confirmed reopening enables the next click.' },
+  { title: 'One gesture at a time.', category: 'SPRINT 03', text: 'Raise one clearly open hand to aim. A complete fist activates a focused button once. Rotate to a flat open palm and move up or down to start scrolling. Return to the starting height to stop, or turn upright to aim again.' },
   { title: 'A steady place to begin.', category: '01 / HOLD', text: 'Keep the whole palm visible and hold still for ten seconds. In debug mode, record stationary pointer variation and focus interruptions.' },
   { title: 'Make movement comfortable.', category: '02 / CALIBRATE', text: 'Capture a comfortable center in debug mode and adjust the camera movement range. A larger range lowers pointer gain. Recognition thresholds stay unchanged.' },
   { title: 'Move between the five targets.', category: '03 / MOVE', text: 'Try slow horizontal and vertical movement, then faster movement. Notice whether feedback follows smoothly and whether focus remains steady.' },
-  { title: 'Disengage safely.', category: '04 / RELEASE', text: 'Remove the hand, briefly occlude it, then return. Stale observations stop movement. Partial closure, unknown pose or a second hand must not activate anything. Dragging and gesture scrolling remain disabled.' },
+  { title: 'Disengage safely.', category: '04 / RELEASE', text: 'Remove the hand, briefly occlude it, then return. Stale observations stop movement. Partial closure, unknown pose or a second hand must not activate anything. Dragging and two-hand gestures remain disabled.' },
   { title: 'Native input stays available.', category: '05 / INPUT', text: 'Use mouse, touch or keyboard to activate buttons, move the card and read these notes. Escape pauses pointer feedback.' },
 ]
 const modeLabels: Record<InteractionSnapshot['mode'], string> = {
@@ -36,14 +38,16 @@ function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d={diagonal ? 'M6 18 18 6M6 6h12v12' : 'M5 12h14m-6-6 6 6-6 6'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
 }
 
-export default function GesturePlayground({ cameraControls, snapshot, cardPosition, activations, buttonActivations, palette, onActivate, onManualDrag, scrollRef, arenaRef, children }: GesturePlaygroundProps) {
+export default function GesturePlayground({ cameraControls, snapshot, scrollTestPage = false, cardPosition, activations, buttonActivations, palette, onActivate, onManualDrag, scrollRef, arenaRef, children }: GesturePlaygroundProps) {
   const dragPoint = useRef<{ id: number; x: number; y: number } | null>(null)
   const [manualDragging, setManualDragging] = useState(false)
   const statusReason = snapshot.mode === 'IDLE' && snapshot.reason === 'Reset'
     ? 'Start camera to begin.'
     : snapshot.reason || 'Start camera to begin.'
   const clickLabels: Partial<Record<ClickState, string>> = { TARGET_FOCUSED: 'Ready to activate', FIST_TRANSITION: 'Confirming fist', FIST_CONFIRMED: 'Fist confirmed', CLICK: 'Activated', WAIT_FOR_RELEASE: 'Open your hand to release' }
-  const statusLabel = snapshot.clickState && clickLabels[snapshot.clickState] || modeLabels[snapshot.mode]
+  const statusLabel = snapshot.interactionState === 'SCROLL_ENTRY' ? 'Flat palm · move to scroll'
+    : snapshot.interactionState === 'SCROLL_ACTIVE' ? snapshot.scrollVelocity === 0 ? 'Scroll neutral' : snapshot.scrollVelocity < 0 ? 'Scrolling up' : 'Scrolling down'
+    : snapshot.clickState && clickLabels[snapshot.clickState] || modeLabels[snapshot.mode]
   const gestureStyle = (id: string): CSSProperties => ({ '--proximity': Math.max(0, Math.min(1, snapshot.proximity[id] ?? 0)) } as CSSProperties)
   const targetClass = (id: string, base: string) => `${base} gesture-target${snapshot.focusId === id ? ' is-focused' : ''}`
 
@@ -78,6 +82,10 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
   }
 
   return <main className={`playground palette-${palette}`}>
+    {(snapshot.interactionState === 'SCROLL_ENTRY' || snapshot.interactionState === 'SCROLL_ACTIVE') && <aside className="page-scroll-feedback" role="status" aria-live="polite">
+      <span aria-hidden="true">{snapshot.scrollVelocity < 0 ? '↑' : snapshot.scrollVelocity > 0 ? '↓' : '↕'}</span>
+      <div>{statusLabel}<small>{snapshot.interactionState === 'SCROLL_ENTRY' ? 'Move your flat hand up or down' : snapshot.scrollVelocity === 0 ? 'Move above or below this resting height' : 'Return to resting height to stop'}</small></div>
+    </aside>}
     <div className="playground-shell">
       <header className="playground-header">
         <a className="brand" href="#playground" aria-label="Gesture Lab home">
@@ -85,7 +93,7 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
           <span>gesture<span className="brand-light">lab</span><span className="brand-dot">.</span></span>
         </a>
         <div className="header-label"><span className="tiny-orbit" aria-hidden="true" /> An experiment in natural interaction</div>
-        <span className="edition">SPRINT / 02</span>
+        <span className="edition">SPRINT / 03</span>
       </header>
 
       <section className="playground-intro" id="playground" aria-labelledby="playground-title">
@@ -107,7 +115,7 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
       <div className="gesture-primer" aria-label="Gesture quick guide">
         <div><span className="primer-symbol" aria-hidden="true">↗</span><p><strong>Open hand</strong><span>Aim at a control</span></p></div>
         <div><span className="primer-symbol primer-grasp" aria-hidden="true">◇</span><p><strong>Close to activate</strong><span>Hold a fist · reopen to repeat</span></p></div>
-        <div><span className="primer-symbol" aria-hidden="true">⇅</span><p><strong>One hand at a time</strong><span>Scroll and two-hand control disabled</span></p></div>
+        <div><span className="primer-symbol" aria-hidden="true">⇅</span><p><strong>Flat to scroll</strong><span>Move up / down from resting height</span></p></div>
         <p className="escape-hint"><kbd>esc</kbd> to pause</p>
       </div>
 
@@ -117,7 +125,7 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
           const id = 'test-' + index
           return <button key={id} className={targetClass(id, 'pointer-test-button pointer-target-' + index)} style={gestureStyle(id)} data-gesture-target={id} data-gesture-kind="click" onClick={() => onActivate(id)}><span>0{index + 1}</span>{label}<small>{buttonActivations[id] ?? 0} activations · mouse / keyboard welcome</small>{(buttonActivations[id] ?? 0) > 0 && <span key={buttonActivations[id]} className="activation-flash" aria-hidden="true" />}</button>
         })}</div>
-        <p>Aim with an open palm. Let the target settle, close a complete fist, then reopen. Each button shows its activation count.</p>
+        <p>Aim with an open palm. Let the target settle, close a complete fist, then reopen. Flat palms scroll the page. <a href={scrollTestPage ? '/' : '/scroll-test'}>{scrollTestPage ? 'Return to playground' : 'Open the long scrolling test'}</a></p>
       </section>
       <div className="experiment-grid">
         <section className="interaction-experiments" aria-labelledby="interaction-title">
@@ -155,16 +163,30 @@ export default function GesturePlayground({ cameraControls, snapshot, cardPositi
           <div className="section-heading"><h2 id="reading-title">Find your flow</h2><span>02 — EXPLORE</span></div>
           <div className={`reading-panel${snapshot.mode === 'SCROLL' || snapshot.mode === 'SCROLL_FAST' ? ' is-scrolling' : ''}`}>
             <div className="reading-toolbar"><div><span className="reading-live-dot" /> FIELD NOTES</div><span>SCROLL TO DISCOVER <span aria-hidden="true">↓</span></span></div>
-            <div className="reading-viewport" ref={scrollRef} tabIndex={0} role="region" aria-label="Scrollable field notes. Use mouse wheel or keyboard. Gesture scrolling is disabled.">
+            <div className="reading-viewport" ref={scrollRef} tabIndex={0} role="region" aria-label="Scrollable field notes. Use mouse wheel or keyboard. Gestures scroll the whole page.">
               <div className="journal-cover"><span className="journal-edition">THE GESTURE JOURNAL — VOL. 01</span><div className="journal-art" aria-hidden="true"><i /><i /><i /><span /></div><p>Follow your<br /><em>natural instinct.</em></p><div className="journal-cover-bottom"><span>THOUGHTS ON MOVEMENT<br />& THE SPACES IN BETWEEN</span><span aria-hidden="true">↙</span></div></div>
               <div className="journal-content">{readingSections.map((section, index) => <article className="journal-entry" key={section.category}><p className="eyebrow">{section.category}</p><h3>{section.title}</h3><p>{section.text}</p>{index === 3 && <blockquote>“The interface should feel like<br />it is listening.”</blockquote>}</article>)}<p className="journal-end">END OF NOTES <span aria-hidden="true">✳</span> BEGIN AGAIN</p></div>
             </div>
-            <div className="reading-footer"><span aria-hidden="true">⇅</span><span>Mouse wheel or keyboard · gesture scrolling disabled</span><span className="reading-speed">{snapshot.mode === 'SCROLL_FAST' ? '3×' : '1×'}</span></div>
+            <div className="reading-footer"><span aria-hidden="true">⇅</span><span>Native wheel here · flat palm scrolls the whole page</span></div>
           </div>
         </section>
       </div>
 
       {children && <section className="playground-diagnostics" aria-label="Calibration and diagnostics">{children}</section>}
+
+      {scrollTestPage && <section className="scroll-test-course" aria-label="Long page scrolling acceptance course">
+        <div className="section-heading"><h2>A little space to find your flow.</h2><span>SCROLL / PRACTICE</span></div>
+        {[
+          ['01 / BEGIN', 'Start with a movement.', 'Show one flat open hand and move up or down. Your starting height becomes the resting point; no still-hold is required.'],
+          ['02 / DIRECTION', 'Follow the height of your hand.', 'Lower your hand a little to travel down this page. Raise it above its resting height to travel upward.'],
+          ['03 / CONTINUOUS', 'Set a pace. Keep it.', 'Hold your hand away from neutral to keep moving. A larger displacement increases the pace. There is no need to keep swiping.'],
+          ['04 / STOP', 'Come back to stillness.', 'Return to the resting height. The page should stop immediately, without coasting.'],
+          ['05 / SWITCH', 'A natural change of intention.', 'Turn the open palm upright to leave scrolling. The pointer will confirm before it resumes. A fist while scrolling should never click.'],
+          ['06 / RECOVER', 'Take a break. Begin again.', 'Lower your hand out of view. Return with a flat open palm and begin a new up or down stroke. Previous scrolling does not resume by itself.'],
+          ['07 / RETURN', 'Find your way back.', 'Raise the hand above neutral and travel back to the top. Turn upright, aim at a test button, close a complete fist, then reopen.'],
+        ].map(([category, title, text]) => <article key={category}><p className="eyebrow">{category}</p><h2>{title}</h2><p>{text}</p></article>)}
+      </section>}
+
       <footer className="playground-footer"><span><span className="footer-star" aria-hidden="true">✳</span> Made for a more human interaction.</span><span>Mouse & keyboard always welcome.</span></footer>
     </div>
   </main>

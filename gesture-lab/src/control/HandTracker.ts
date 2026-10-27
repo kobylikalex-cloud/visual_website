@@ -2,6 +2,7 @@ import { DEFAULT_GESTURE_CONFIG, type GestureConfig } from './GestureConfig.ts'
 import type { Detection, Point2, TrackedHand, TrackingFrame, TrackingResult } from './types.ts'
 import { hasValidHandLandmarks } from '../gestures/TrackingQuality.ts'
 import { recognizeControlHand } from './ControlRecognition.ts'
+import { getHandOrientationMetrics } from '../gestures/HandOrientationDiagnostics.ts'
 
 const distance = (a: Point2, b: Point2): number => Math.hypot(a.x - b.x, a.y - b.y)
 
@@ -108,6 +109,7 @@ export class HandTracker {
       id: assignment[index] < 0 ? this.nextId++ : this.previous[assignment[index]].id,
       center: validCenters[index],
       ...recognizeControlHand(detection.worldLandmarks),
+      orientationMetrics: getHandOrientationMetrics(detection.worldLandmarks),
       timestampMs: timestamp,
     }))
     // Return raw recognition uncertainty; confirmation belongs to the action state machine.

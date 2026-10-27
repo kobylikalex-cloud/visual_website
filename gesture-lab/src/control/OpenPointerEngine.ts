@@ -31,14 +31,20 @@ export class OpenPointerEngine {
   }
 
   configure(config: GestureConfig) {
-    const gainOnly = (Object.keys(this.config) as (keyof GestureConfig)[]).every(key => key === 'pointerGain' || config[key] === this.config[key])
+    const gainOnly = config.pointerMode === this.config.pointerMode && config.pointerFilter === this.config.pointerFilter && config.pointerPreview === this.config.pointerPreview && (Object.keys(this.config) as (keyof GestureConfig)[]).every(key => key === 'pointerGain' || config[key] === this.config[key])
     if (gainOnly) {
       this.pointer.setGain(config.pointerGain)
       this.config = { ...config }
       return this.snapshot
     }
-    this.config = { ...config }; this.pointer = new PointerController(config); this.selector = new TargetSelector(config)
+    this.config = { ...config }; this.pointer.configure(config); this.selector = new TargetSelector(config)
     return this.cancel('Movement calibration changed')
+  }
+
+  recenterPointer(): InteractionSnapshot {
+    const result = this.cancel('Pointer recentered; confirm open palm')
+    this.pointer.recenter()
+    return result
   }
 
   cancel(reason = 'Paused'): InteractionSnapshot {
@@ -63,6 +69,7 @@ export class OpenPointerEngine {
     this.diagnostics = { ...this.diagnostics, raw, handId: hand.id, quality: frame.reason, confirmed: false, observationAgeMs: receivedAt - time }
     if (raw !== 'OPEN') {
       this.candidateSince = null
+      if (this.config.pointerMode === 'relative') this.pointer.reset()
       // A previously focused target can remain visually steady for the existing
       // confirmation interval. UNKNOWN never moves the pointer or renews this deadline.
       if (raw === 'UNKNOWN' && this.snapshot.focusId && time - this.lastOpen <= this.config.confirmationMs && frame.targets.some(t => t.id === this.snapshot.focusId && !t.disabled)) {
@@ -75,9 +82,12 @@ export class OpenPointerEngine {
       frame.targets.some(target => target.id === this.snapshot.focusId && !target.disabled)
     this.lastOpen = time
     if (this.candidateSince === null) this.candidateSince = time
-    if (time - this.candidateSince < this.config.confirmationMs) return this.snapshot = retainFocus
-      ? { ...this.snapshot, mode: 'UNCERTAIN', pointer: null, reason: 'Reconfirming open palm; movement frozen' }
-      : { ...empty('Confirming open palm'), mode: 'UNCERTAIN' }
+    if (time - this.candidateSince < this.config.confirmationMs) {
+      if (this.config.pointerPreview) return this.preview(receivedAt)
+      return this.snapshot = retainFocus
+        ? { ...this.snapshot, mode: 'UNCERTAIN', pointer: null, reason: 'Reconfirming open palm; movement frozen' }
+        : { ...empty('Confirming open palm'), mode: 'UNCERTAIN' }
+    }
     this.diagnostics.confirmed = true
     return this.render(receivedAt)
   }
@@ -89,13 +99,21 @@ export class OpenPointerEngine {
     // may span several fresh observations delivered after inference. Only a
     // genuinely uncertain pose uses the shorter visual-focus hold.
     if (now - this.hand.timestampMs > this.config.freshnessMs ||
-        (this.diagnostics.raw !== 'OPEN' && now - this.lastOpen > this.config.confirmationMs)) return this.cancel('Observation expired; movement stopped')
-    return this.diagnostics.confirmed ? this.render(now) : this.snapshot
+        (this.diagnostics.raw === 'UNKNOWN' && this.snapshot.focusId !== null &&
+          now - this.lastOpen > this.config.confirmationMs)) return this.cancel('Observation expired; movement stopped')
+    return this.diagnostics.confirmed ? this.render(now)
+      : this.config.pointerPreview && this.diagnostics.raw === 'OPEN' ? this.preview(now) : this.snapshot
+  }
+
+  /** Known OPEN geometry can follow movement before it authorizes any action.
+   * UNKNOWN never enters this path; action confirmation stays independent. */
+  private preview(now: number): InteractionSnapshot {
+    return this.snapshot = { ...this.render(now), mode: 'UNCERTAIN', reason: 'Confirming open palm; movement preview only' }
   }
 
   private render(now: number): InteractionSnapshot {
     const frame = this.frame!, hand = this.hand!
-    const pointer = this.pointer.update(hand.center, now, frame.viewport)
+    const pointer = this.pointer.update(hand.center, now, frame.viewport, hand.timestampMs)
     const selection = this.selector.update(pointer, frame.targets, now)
     const target = frame.targets.find(t => t.id === selection.focusId)
     this.diagnostics.distance = target ? distanceToTarget(pointer, target) : null
