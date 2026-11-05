@@ -7,6 +7,13 @@ import {
 } from '@mediapipe/tasks-vision'
 
 import { classifyHandPose, HandPoseStabilizer, type HandPose } from '../gestures/HandPoseEngine'
+import {
+  classifyHandOrientation,
+  getHandOrientationMetrics,
+  HandOrientationStabilizer,
+  type HandOrientation,
+  type HandOrientationMetrics
+} from '../gestures/HandOrientationDiagnostics'
 
 type CameraStatus = 'idle' | 'loading' | 'active' | 'error'
 
@@ -27,12 +34,15 @@ export default function CameraManager() {
   const lastDetectionRef = useRef(0)
   const debugRef = useRef(true)
   const poseFiltersRef = useRef(new Map<string, HandPoseStabilizer>())
+  const orientationFiltersRef = useRef(new Map<string, HandOrientationStabilizer>())
 
   const [status, setStatus] = useState<CameraStatus>('idle')
   const [loadingMessage, setLoadingMessage] = useState('')
   const [error, setError] = useState('')
   const [detectedHands, setDetectedHands] = useState(0)
   const [handPoses, setHandPoses] = useState<HandPose[]>([])
+  const [orientationMetrics, setOrientationMetrics] = useState<(HandOrientationMetrics | null)[]>([])
+  const [orientations, setOrientations] = useState<HandOrientation[]>([])
   const [debugEnabled, setDebugEnabled] = useState(true)
 
   // Stop camera, inference loop and MediaPipe resources.
@@ -63,6 +73,7 @@ export default function CameraManager() {
     lastVideoTimeRef.current = -1
     lastDetectionRef.current = 0
     poseFiltersRef.current.clear()
+    orientationFiltersRef.current.clear()
   }, [])
 
   // Invalidate pending camera startup before releasing resources on unmount.
@@ -101,6 +112,8 @@ export default function CameraManager() {
         // Stabilize each hand independently, keyed by MediaPipe handedness.
         // This avoids one uncertain frame immediately switching OPEN to UNKNOWN.
         const visibleHands = new Set<string>()
+        const readings = result.worldLandmarks.map(getHandOrientationMetrics)
+        const nextOrientations: HandOrientation[] = []
         const poses = result.worldLandmarks.map((landmarks, index) => {
           const label = result.handedness[index]?.[0]?.categoryName
           const key = label === 'Left' || label === 'Right'
@@ -115,12 +128,30 @@ export default function CameraManager() {
             poseFiltersRef.current.set(key, filter)
           }
 
+          let orientationFilter = orientationFiltersRef.current.get(key)
+          if (!orientationFilter) {
+            orientationFilter = new HandOrientationStabilizer(180)
+            orientationFiltersRef.current.set(key, orientationFilter)
+          }
+          nextOrientations.push(
+            orientationFilter.update(classifyHandOrientation(readings[index]), now)
+          )
+
           return filter.update(classifyHandPose(landmarks), now)
         })
 
         for (const key of poseFiltersRef.current.keys()) {
           if (!visibleHands.has(key)) poseFiltersRef.current.delete(key)
         }
+        for (const key of orientationFiltersRef.current.keys()) {
+          if (!visibleHands.has(key)) orientationFiltersRef.current.delete(key)
+        }
+        setOrientations(previous =>
+          previous.length === nextOrientations.length &&
+          previous.every((value, index) => value === nextOrientations[index])
+            ? previous
+            : nextOrientations
+        )
 
         setHandPoses(previous =>
             previous.length === poses.length &&
@@ -129,6 +160,10 @@ export default function CameraManager() {
                 : poses
         )
 
+        // Camera-relative telemetry, shown only in the debug overlay.
+        if (debugRef.current) {
+          setOrientationMetrics(readings)
+        }
 
         const handCount = result.landmarks.length
         setDetectedHands(previous =>
@@ -178,6 +213,8 @@ export default function CameraManager() {
         setError('Fehler während der Handerkennung.')
         setDetectedHands(0)
         setHandPoses([])
+        setOrientationMetrics([])
+        setOrientations([])
         return
       }
     }
@@ -195,6 +232,8 @@ export default function CameraManager() {
     setError('')
     setDetectedHands(0)
     setHandPoses([])
+    setOrientationMetrics([])
+    setOrientations([])
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -297,6 +336,8 @@ export default function CameraManager() {
     setLoadingMessage('')
     setDetectedHands(0)
     setHandPoses([])
+    setOrientationMetrics([])
+    setOrientations([])
   }
 
   function toggleDebug() {
@@ -403,8 +444,26 @@ export default function CameraManager() {
                 {handPoses.length === 0
                 ? 'Keine Hand erkannt'
                 : handPoses.map((pose, index) => (
-                    <div key={index}>
+                    <div key={index} style={{ marginBottom: 6 }}>
                         Hand {index + 1}: <strong>{pose}</strong>
+                        <div style={{ fontSize: 12, marginTop: 3 }}>
+                          Ausrichtung: <strong>{
+                            orientations[index] === 'UPRIGHT_LIKE'
+                              ? 'AUFRECHT (Kandidat)'
+                              : orientations[index] === 'FLAT_LIKE'
+                                ? 'WAAGERECHT (Kandidat)'
+                                : 'UNSICHER'
+                          }</strong>
+                        </div>
+                        {orientationMetrics[index] && (
+                          <div style={{ fontSize: 12, color: '#cbd5e1' }}>
+                            Bildneigung: {orientationMetrics[index].imageTiltDegrees}°
+                            {' · '}Tiefe: {orientationMetrics[index].depthTiltDegrees}°
+                            <div>
+                              Handfläche zur Kamera: {orientationMetrics[index].palmFacingCameraPercent}%
+                            </div>
+                          </div>
+                        )}
                     </div>
                 ))
             }
