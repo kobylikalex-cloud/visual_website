@@ -58,8 +58,9 @@ try {
   // round-trip is covered in unit tests; this exercises the actual native handler.
   await page.mouse.move(box.x+box.width/2+22,box.y+box.height/2-12)
   await page.mouse.down()
+  await page.mouse.move(box.x+box.width/2+22,box.y+box.height/2-12)
   await page.waitForTimeout(400)
-  assert.equal(await readout.textContent(),before,'off-center press alone does not jump')
+  assert.equal(await readout.textContent(),before,'off-center drag at the same point preserves grip offset')
   await page.mouse.move(box.x+box.width/2+62,box.y+box.height/2-42,{steps:8})
   await page.mouse.up()
   await page.waitForFunction(expected=>globalThis.document.querySelector('[aria-label="Cube position"]')?.textContent!==expected,before,{timeout:5000,polling:100})

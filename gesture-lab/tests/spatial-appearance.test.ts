@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {BoxGeometry, Mesh, MeshPhysicalMaterial, Raycaster, Vector2} from 'three'
+import {BoxGeometry, Mesh, MeshPhysicalMaterial, Raycaster, ShaderMaterial, Texture, Vector2} from 'three'
 import {SpatialAppearance} from '../src/spatial/SpatialAppearance.ts'
 import {createSpatialCamera} from '../src/spatial/SpatialScene.ts'
 
@@ -100,4 +100,19 @@ test('room architecture is made of filled non-pickable surfaces within a finite 
   const raycaster=new Raycaster();raycaster.setFromCamera(new Vector2(0,0),createSpatialCamera(1.6))
   assert.equal(raycaster.intersectObject(walls,true).length,0)
   appearance.dispose();cube.geometry.dispose();cube.material.dispose()
+})
+
+test('glass reuses the controller-owned environment without creating or disposing a reflection texture', () => {
+  const cube=fixture(),environment=new Texture()
+  environment.image={width:768,height:1024}
+  let disposed=0;environment.addEventListener('dispose',()=>disposed++)
+  const appearance=new SpatialAppearance(cube,environment)
+  const shell=cube.getObjectByName('optical-glass-shell')
+  assert.ok(shell instanceof Mesh && shell.material instanceof ShaderMaterial)
+  assert.equal(shell.material.uniforms.uEnvironment?.value,environment)
+  assert.equal(shell.material.uniforms.uHasEnvironment?.value,1)
+  assert.equal(Number(shell.material.defines.CUBEUV_MAX_MIP),8)
+  appearance.dispose()
+  assert.equal(disposed,0,'the controller remains the sole owner of the shared environment')
+  environment.dispose();cube.geometry.dispose();cube.material.dispose()
 })

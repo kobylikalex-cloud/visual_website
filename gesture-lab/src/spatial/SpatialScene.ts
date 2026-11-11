@@ -141,7 +141,7 @@ export class SpatialSceneController implements SpatialScenePort {
     this.cube.name='spatial-cube'
     this.cube.add(this.edges)
     this.scene.add(this.cube)
-    this.appearance=new SpatialAppearance(this.cube)
+    this.appearance=new SpatialAppearance(this.cube,this.environment.texture)
     this.scene.add(this.appearance.stage)
     this.keyLight.position.set(-3,4,5)
     const fill=new DirectionalLight(0x72dfe9,2)

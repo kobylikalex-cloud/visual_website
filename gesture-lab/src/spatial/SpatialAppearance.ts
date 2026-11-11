@@ -6,6 +6,7 @@ import {
 } from 'three'
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
+import type {Texture} from 'three'
 import type {SpatialState} from './types.ts'
 
 const CYAN=new Color('#54e9fa'), VIOLET=new Color('#b989ff')
@@ -32,7 +33,7 @@ export class SpatialAppearance {
   private readonly cube:Mesh
   private disposed=false
 
-  constructor(cube:Mesh){
+  constructor(cube:Mesh,environment?:Texture){
     this.cube=cube
     this.stage.name='cinematic-decoration-only'
     this.details.name='noninteractive-cube-lighting'
@@ -49,15 +50,23 @@ export class SpatialAppearance {
     this.details.add(this.rails(edges,.008,this.edgeMaterial),this.rails(edges,.023,this.glowMaterial))
     // Rounded surface normals and reflected studio strips give the glass thickness.
     // The original BoxGeometry stays the only raycast target.
+    // Borrow the controller's once-baked PMREM, with no new render pass or texture.
+    const environmentImage=environment?.image as {width:number;height:number}|undefined
+    const environmentWidth=environmentImage?.width??768,environmentHeight=environmentImage?.height??1024
     this.glassMaterial=this.ownMaterial(new ShaderMaterial({
       transparent:true,depthWrite:false,side:FrontSide,toneMapped:false,
-      uniforms:{uCyan:{value:CYAN},uViolet:{value:VIOLET},uEmphasis:{value:1}},
+      defines:{ENVMAP_TYPE_CUBE_UV:1,CUBEUV_TEXEL_WIDTH:(1/environmentWidth).toFixed(12),
+        CUBEUV_TEXEL_HEIGHT:(1/environmentHeight).toFixed(12),CUBEUV_MAX_MIP:(Math.log2(environmentHeight)-2).toFixed(1)},
+      uniforms:{uCyan:{value:CYAN},uViolet:{value:VIOLET},uEmphasis:{value:1},
+        uEnvironment:{value:environment??null},uHasEnvironment:{value:environment?1:0}},
       vertexShader:`varying vec3 vNormal;varying vec3 vWorld;varying vec3 vLocal;
         void main(){vec4 world=modelMatrix*vec4(position,1.0);vWorld=world.xyz;
           vNormal=normalize(mat3(modelMatrix)*normal);vLocal=position;
           gl_Position=projectionMatrix*viewMatrix*world;}`,
       fragmentShader:`varying vec3 vNormal;varying vec3 vWorld;varying vec3 vLocal;
         uniform vec3 uCyan;uniform vec3 uViolet;uniform float uEmphasis;
+        uniform sampler2D uEnvironment;uniform float uHasEnvironment;
+        #include <cube_uv_reflection_fragment>
         void main(){vec3 n=normalize(vNormal),v=normalize(cameraPosition-vWorld);
           float fres=pow(1.0-max(dot(n,v),0.0),2.2);vec3 r=reflect(-v,n);
           vec3 tint=mix(uCyan,uViolet,smoothstep(-.48,.56,vLocal.x));
@@ -74,6 +83,12 @@ export class SpatialAppearance {
           vec3 c=tint*(.075+fres*.5+edge*.72+lower*.10);
           c+=vec3(.75,.94,1.0)*(key*.95+strip*.27+ribbon*.12)+uViolet*violet*.55;
           float a=.16+fres*.34+edge*.30+key*.22+strip*.12;
+          if(uHasEnvironment>.5){
+            vec3 studio=textureCubeUV(uEnvironment,r,.09).rgb;
+            studio=studio/(vec3(1.0)+studio*.65);
+            c+=studio*mix(vec3(.65,.85,1.0),tint,.25)*(.22+fres*.50);
+            a+=min(.30,max(max(studio.r,studio.g),studio.b)*.16);
+          }
           gl_FragColor=vec4(c*uEmphasis,min(a,.86));
           ${outputColor}
         }`,
@@ -105,7 +120,8 @@ export class SpatialAppearance {
     cube.add(this.details)
 
     // Dark brushed metal, not a bright grey cylinder competing with the object.
-    const metal=this.ownMaterial(new MeshStandardMaterial({color:0x07101c,metalness:.78,roughness:.27,envMapIntensity:.25}))
+    const metal=this.ownMaterial(new MeshStandardMaterial({color:0x07101c,metalness:.82,roughness:.4,envMapIntensity:.13}))
+    const architecture=this.ownMaterial(new MeshStandardMaterial({color:0x0c1722,metalness:.5,roughness:.44,envMapIntensity:.15}))
     const platform=this.ownMaterial(new ShaderMaterial({
       toneMapped:false,uniforms:{uCyan:{value:CYAN},uViolet:{value:VIOLET}},
       vertexShader:`varying vec3 p;varying vec3 n;void main(){p=position;n=normal;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
@@ -141,7 +157,7 @@ export class SpatialAppearance {
           float left=exp(-length((p-vec2(-4.2,1.0))*vec2(2.0,.24))*.9);
           float right=exp(-length((p-vec2(4.2,.4))*vec2(2.0,.24))*.9);
           float center=exp(-length((p-vec2(0,2.0))*vec2(.9,.23))*1.8);
-          vec3 c=vec3(.005,.010,.018)+vec3(.02,.065,.10)*lines*fade;
+          vec3 c=vec3(.005,.010,.018)+vec3(.012,.025,.04)*lines*fade;
           c+=vec3(.015,.37,.48)*left*.27+vec3(.22,.06,.4)*right*.28+vec3(.06,.2,.3)*center*.12;
           gl_FragColor=vec4(c,fade);${outputColor}
         }`,
@@ -169,8 +185,8 @@ export class SpatialAppearance {
       const g=new ExtrudeGeometry(shape,{depth:.4,bevelEnabled:true,bevelThickness:.12,bevelSize:.14,bevelSegments:2,steps:1})
       g.translate(0,0,-6.55);walls.push(g)
     }
-    const wall=this.mesh(this.join(walls),metal);wall.name='architectural-shell';this.stage.add(wall)
-    this.stage.add(this.rails(ribs,.15,metal))
+    const wall=this.mesh(this.join(walls),architecture);wall.name='architectural-shell';this.stage.add(wall)
+    this.stage.add(this.rails(ribs,.09,architecture))
     const lightRibs=ribs.map(([a,b]):[Vector3,Vector3]=>[a.clone().add(new Vector3(0,0,.16)),b.clone().add(new Vector3(0,0,.16))])
     this.stage.add(this.rails(lightRibs,.048,this.glowMaterial),this.rails(lightRibs,.012,this.edgeMaterial))
     const atmosphere=this.ownMaterial(new ShaderMaterial({
