@@ -1,0 +1,12 @@
+.spatial-mode .playground-header { min-height: 52px; }
+.spatial-mode .playground-intro { padding: 16px 0; gap: 24px; }
+.spatial-mode .intro-copy > .eyebrow { display: none; }
+.spatial-mode h1 { font-size: clamp(26px, 3vw, 40px); letter-spacing: -1px; }
+.spatial-mode .intro-description { margin-top: 9px; font-size: 11px; }
+.spatial-navigation { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 8px 2px 16px; font-size: 10px; color: #809ba3; }
+.spatial-navigation a { color: #a4c9ce; text-decoration: none; }
+.spatial-navigation a:hover { text-decoration: underline; }
+.spatial-diagnostics { margin-bottom: 24px; overflow-wrap: anywhere; }
+.spatial-calibration-actions, .spatial-depth-indicator { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.spatial-depth-indicator { padding: 10px 0; font-size: 12px; }
+.spatial-depth-indicator meter { width: min(280px, 65%); }

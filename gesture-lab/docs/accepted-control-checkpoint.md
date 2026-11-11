@@ -1,0 +1,9 @@
+# Accepted control checkpoint
+
+The user accepted hand travel and pointer following, then direct scrolling in both directions on2026-10-26. They requested that behavior remain unchanged. A subsequent2D card-grab extension changed the shared FistClickEngine/target collection/App dispatch and was rejected because the overall steering felt worse. Those changes were removed. On2026-10-27 the user confirmed: "Ja, die Steuerung ist wieder wie vorher".
+
+The protected baseline uses relative touchpad movement, range0.35, independent gain1.6, adaptive causal filtering, early known-OPEN geometry preview with separate action confirmation, original click confirmation/release guards, and direct directed-flat-motion scroll entry. No guessed recognition/orientation thresholds were relaxed. Scroll entry uses at least3 fresh strong-flat OPEN observations and at least2 displaced observations beyond the existing neutral band; one displaced outlier cannot activate. It retains continuous position control and stops at the initial height.
+
+Verification after rollback:220 automated tests pass, TypeScript/Vite build passes, ESLint passes. The local Vite server was checked for the restored modules and a fresh browser tab was used for user reconfirmation. A local ignored source snapshot is in`.local-evaluation/accepted-control-source-2026-10-27/`; its source hashes are recorded there. Rejected card experiments are retained only under`.local-evaluation/`.
+
+Do not use earlier commits alone as an accepted-code substitute: the accepted implementation was developed in an uncommitted worktree before this checkpoint. Sprint04 must start from the saved baseline commit, preserve this source behavior, and keep its spatial selection/manipulation implementation separate. Do not push or merge without explicit approval. No camera video or hand landmark observations may be uploaded.
