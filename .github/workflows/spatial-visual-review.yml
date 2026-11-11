@@ -1,0 +1,69 @@
+name: Spatial visual review
+
+on:
+  push:
+    branches: [design/spatial-lab-cinematic]
+    paths:
+      - '.github/workflows/spatial-visual-review.yml'
+      - 'gesture-lab/tests/visual-browser.mjs'
+  pull_request:
+    paths:
+      - 'gesture-lab/**'
+      - '.github/workflows/spatial-visual-review.yml'
+
+permissions:
+  contents: read
+concurrency:
+  group: spatial-visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: gesture-lab/package-lock.json
+      - name: Install locked dependencies
+        working-directory: gesture-lab
+        run: npm ci
+      - name: Verify protected gesture sources
+        run: |
+          git diff --exit-code dd6b905acabf8106e3afec9e28cde253e5d9e776 -- \
+            gesture-lab/src/control gesture-lab/src/gestures gesture-lab/src/workers \
+            gesture-lab/src/evaluation gesture-lab/src/App.tsx \
+            gesture-lab/src/components/CameraManager.tsx \
+            gesture-lab/src/spatial/RelativePalmDepth.ts \
+            gesture-lab/src/spatial/SpatialControlBridge.ts \
+            gesture-lab/src/spatial/SpatialInteractionEngine.ts \
+            gesture-lab/src/spatial/SpatialRenderClock.ts \
+            gesture-lab/src/spatial/types.ts \
+            gesture-lab/package.json gesture-lab/package-lock.json
+      - name: Test
+        working-directory: gesture-lab
+        run: npm test
+      - name: Build
+        working-directory: gesture-lab
+        run: npm run build
+      - name: Lint
+        working-directory: gesture-lab
+        run: npm run lint
+      - name: Prepare local review snapshot
+        if: always()
+        run: |
+          mkdir -p review
+          tar --exclude='gesture-lab/.local-evaluation' -czf review/workspace.tgz gesture-lab
+          cp "$(command -v node)" review/node
+          chmod +x review/node
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spatial-review-workspace
+          path: review/
+          retention-days: 3
