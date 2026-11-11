@@ -63,6 +63,12 @@ jobs:
         env:
           PLAYWRIGHT_MODULE: ${{ runner.temp }}/gesture-review-tools/node_modules/playwright/index.mjs
         run: node tests/visual-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spatial-review-visual
+          path: review/visual/
+          retention-days: 3
       - name: Prepare local review snapshot
         if: always()
         run: |

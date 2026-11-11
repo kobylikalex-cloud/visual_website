@@ -103,7 +103,7 @@ export default function GesturePlayground({ cameraControls, snapshot, spatialCon
         <div className="intro-copy">
           <p className="eyebrow"><span /> BEYOND THE CURSOR</p>
           <h1 id="playground-title">{spatialContent ? <>A little room <span>in space.</span></> : <>One hand.<br /><span>Steady focus.</span></>}</h1>
-          <p className="intro-description">{spatialContent ? 'A little less interface. A whole new dimension of control.' : <>Raise one open hand. Move between the targets.<br className="desktop-break" /> Hold a complete fist to activate. Reopen to repeat.</>}</p>
+          <p className="intro-description">{spatialContent ? 'A browser-based spatial lab. Reach in. Make it move.' : <>Raise one open hand. Move between the targets.<br className="desktop-break" /> Hold a complete fist to activate. Reopen to repeat.</>}</p>
           {spatialContent && <div className="cinematic-sequence" aria-label="Spatial gesture sequence">
             <span><i aria-hidden="true">◎</i> Open to focus</span><span><i aria-hidden="true">◇</i> Fist to grasp</span><span><i aria-hidden="true">✣</i> Move in X/Y/Z</span><span><i aria-hidden="true">↗</i> Open to release</span>
           </div>}

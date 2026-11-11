@@ -1,5 +1,30 @@
 # Cinematic Spatial Lab Implementation Plan
 
+## Authorized continuation — camera and composition
+
+The user's 2026-11-11 handoff explicitly supersedes the original fixed-camera
+constraint below. The first implementation and its commits remain the baseline;
+this pass improves their composition rather than restarting the application.
+
+- Centered virtual camera: Z 12, vertical FOV 16 degrees on aspect ratios >=1.5.
+  Narrower canvases widen the FOV to retain horizontal space, including on resize.
+- Retain the world -Z viewing direction. Tilting the camera would invalidate the
+  protected engine's hit-Z / camera-facing-plane grip contract.
+- The unchanged rotated 1.2-unit cube occupies about 43% of desktop canvas height,
+  up from about 27%. The visible Y range is consequently tighter (about +/-0.59
+  instead of +/-0.94 at the nearest allowed depth); depth gain and input filters
+  are unchanged. This is a framing change, not a claim of identical physical feel.
+- Recompose the podium behind the entire cube depth envelope. Refine procedural
+  glass, interior light, architectural wings and the scoped page styling.
+- Add actual-camera off-center raycast/grip and protected-engine interaction tests.
+  Retain the stage clipping margin; cover narrow and wide canvases and both depth
+  limits. Browser review includes off-center native dragging and screenshots.
+- Keep PR #8 a draft. Protected sources and package files stay byte-for-byte equal
+  to pinned main. Live webcam quality/performance still requires user acceptance.
+
+The original implementation plan follows for historical context; only its
+camera/framing constraint is superseded by this authorization.
+
 **Goal:** Implement the user's approved cyan/violet glass-cube concept as a real interactive webpage, without changing the accepted gesture controls.
 
 **Architecture:** Add a scoped presentation stylesheet and a small renderer-only decoration module. Keep the original interaction mesh, its world size/rotation, camera, picking/projection, world limits, clocks, callback ownership and all inference/gesture modules unchanged. Keep the original page routes and controls.

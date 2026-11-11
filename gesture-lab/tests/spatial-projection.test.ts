@@ -19,20 +19,20 @@ test('canvas offset and CSS dimensions map global pointer pixels to NDC', () => 
 test('perspective intersection accounts for aspect, vertical FOV and depth', () => {
   const camera = createSpatialCamera(2)
   const point = projectPointerToPlane({x:900,y:50},rect,0,camera)!
-  close(point.x,5.374096490495822)
-  close(point.y,2.687048245247911)
+  close(point.x,3.372980032857395)
+  close(point.y,1.6864900164286976)
   close(point.z,0)
   const near = projectPointerToPlane({x:900,y:50},rect,1,camera)!
-  close(near.x,4.60636842042499)
-  close(near.y,2.303184210212495)
-  assert.equal(projectPointerToPlane({x:500,y:250},rect,8,camera),null)
+  close(near.x,3.091898363452612)
+  close(near.y,1.545949181726306)
+  assert.equal(projectPointerToPlane({x:500,y:250},rect,13,camera),null)
 })
 
-test('resizing camera aspect keeps vertical span and adjusts horizontal span', () => {
+test('narrow framing expands vertical span while preserving a usable horizontal span', () => {
   const wide = projectPointerToPlane({x:900,y:250},rect,0,createSpatialCamera(2))!
   const squareRect = {...rect,width:400}
   const square = projectPointerToPlane({x:500,y:250},squareRect,0,createSpatialCamera(1))!
-  close(wide.x,square.x*2)
+  close(wide.x,square.x*4/3)
 })
 
 test('raycasting requires actual mesh intersection and reports world surface point', () => {

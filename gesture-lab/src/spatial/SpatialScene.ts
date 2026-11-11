@@ -16,9 +16,18 @@ export function pointerToNdc(pointer:Point2,rect:CanvasRect):Point2|null {
   return {x:((pointer.x-rect.left)/rect.width)*2-1,y:1-((pointer.y-rect.top)/rect.height)*2}
 }
 
+/** A longer lens gives the actual target more of the frame without changing its
+ * geometry. Widen portrait framing so the same target still has room to move.
+ * Keep the optical axis on world -Z: grip planes and keyboard axes depend on it. */
+export function spatialCameraFov(aspect:number):number {
+  const safeAspect=Number.isFinite(aspect)&&aspect>0?aspect:1
+  return 2*Math.atan(Math.tan(8*Math.PI/180)*Math.max(1,1.5/safeAspect))*180/Math.PI
+}
+
 export function createSpatialCamera(aspect:number):PerspectiveCamera {
-  const camera=new PerspectiveCamera(42,Number.isFinite(aspect)&&aspect>0?aspect:1,.1,60)
-  camera.position.set(0,0,7)
+  const safeAspect=Number.isFinite(aspect)&&aspect>0?aspect:1
+  const camera=new PerspectiveCamera(spatialCameraFov(safeAspect),safeAspect,.1,60)
+  camera.position.set(0,0,12)
   camera.lookAt(0,0,0)
   camera.updateMatrixWorld(true)
   return camera
@@ -90,9 +99,9 @@ export class SpatialSceneController implements SpatialScenePort {
   private readonly camera=createSpatialCamera(1)
   private readonly geometry=new BoxGeometry(1.2,1.2,1.2)
   private readonly material=new MeshPhysicalMaterial({
-    color:0x8cb7cd,metalness:.10,roughness:.17,clearcoat:1,clearcoatRoughness:.12,
-    transmission:0,transparent:true,opacity:.23,depthWrite:false,
-    thickness:.65,ior:1.45,envMapIntensity:.4,
+    color:0x255b76,metalness:.08,roughness:.12,clearcoat:1,clearcoatRoughness:.08,
+    transmission:0,transparent:true,opacity:.10,depthWrite:false,
+    thickness:.65,ior:1.45,envMapIntensity:.32,
     emissive:0x185571,emissiveIntensity:.03,
   })
   private readonly cube=new Mesh(this.geometry,this.material)
@@ -190,6 +199,7 @@ export class SpatialSceneController implements SpatialScenePort {
     this.renderer.setPixelRatio(dpr)
     this.renderer.setSize(rect.width,rect.height,false)
     this.camera.aspect=rect.width/rect.height
+    this.camera.fov=spatialCameraFov(this.camera.aspect)
     this.camera.updateProjectionMatrix()
     const visible=visibleSpatialBounds(this.camera,{min:{x:-2.6,y:-1.6,z:-1.5},max:{x:2.6,y:1.6,z:1.8}})
     this.bounds.min=visible.min;this.bounds.max=visible.max

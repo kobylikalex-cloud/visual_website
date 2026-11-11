@@ -12,7 +12,7 @@ const output='../review/visual'
 await mkdir(output,{recursive:true})
 const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host','127.0.0.1','--port','4173','--strictPort'],{stdio:'ignore'})
 let browser
-const report={checks:[],errors:[],timings:{},note:'Native input and software-rendered WebGL checks only. No webcam accuracy or hardware FPS claim.'}
+const report={checks:[],errors:[],timings:{},layouts:[],note:'Native input and software-rendered WebGL checks only. No webcam accuracy or hardware FPS claim.'}
 try {
   let ready=false
   for(let i=0;i<80;i++) {
@@ -54,6 +54,22 @@ try {
   assert.equal(await readout.textContent(),before,'reset restores original position')
   report.timings.resetReadoutIncludingAutomationMs=Date.now()-resetStarted
   report.checks.push('mouse drag, keyboard translation and reset pass')
+  // An off-center pick must retain its grip offset. The real engine/projection
+  // round-trip is covered in unit tests; this exercises the actual native handler.
+  await page.mouse.move(box.x+box.width/2+22,box.y+box.height/2-12)
+  await page.mouse.down()
+  await page.waitForTimeout(400)
+  assert.equal(await readout.textContent(),before,'off-center press alone does not jump')
+  await page.mouse.move(box.x+box.width/2+62,box.y+box.height/2-42,{steps:8})
+  await page.mouse.up()
+  await page.waitForFunction(expected=>globalThis.document.querySelector('[aria-label="Cube position"]')?.textContent!==expected,before,{timeout:5000,polling:100})
+  const offCenter=await readout.textContent()
+  const coordinates=offCenter.match(/-?\d+\.\d+/g).map(Number)
+  assert.ok(coordinates[0]>0&&coordinates[1]>0,'off-center drag follows right and up')
+  assert.equal(coordinates[2],0,'native XY drag does not alter depth')
+  await page.getByRole('button',{name:/Reset position/}).click()
+  await page.waitForFunction(expected=>globalThis.document.querySelector('[aria-label="Cube position"]')?.textContent===expected,before,{timeout:5000,polling:100})
+  report.checks.push('off-center grab has no jump, preserves offset and leaves Z unchanged')
   await page.getByRole('button',{name:'Debug: OFF',exact:true}).click()
   await page.getByRole('button',{name:'Debug: ON',exact:true}).waitFor()
   await page.screenshot({path:output+'/cinematic-debug.png',fullPage:true})
@@ -63,6 +79,11 @@ try {
     await page.setViewportSize({width,height:900})
     await page.waitForTimeout(250)
     assert.ok(await page.evaluate(()=>globalThis.document.documentElement.scrollWidth<=globalThis.innerWidth+1),'no horizontal overflow at '+width)
+    report.layouts.push(await page.evaluate(()=>{
+      const stage=globalThis.document.querySelector('.spatial-scene-canvas').getBoundingClientRect()
+      return {width:globalThis.innerWidth,canvasWidth:stage.width,canvasHeight:stage.height}
+    }))
+    if(width===390)await page.screenshot({path:output+'/cinematic-mobile.png',fullPage:true})
   }
   report.checks.push('no horizontal overflow at 1280/1024/768/390px')
   await page.setViewportSize({width:1600,height:1000})
