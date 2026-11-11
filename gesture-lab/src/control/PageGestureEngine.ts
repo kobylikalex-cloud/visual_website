@@ -79,6 +79,10 @@ export class PageGestureEngine {
     this.cancel('Pointer recentered')
     return this.publish(this.click.recenterPointer(), 'INACTIVE')
   }
+  retainPointerGeometry(point: {x:number;y:number}, viewport: {width:number;height:number}): PageGestureSnapshot {
+    this.cancel('Spatial interaction released')
+    return this.publish(this.click.retainPointerGeometry(point,viewport),'INACTIVE')
+  }
   acknowledge(sequence: number, accepted: boolean, now: number) { this.click.acknowledge(sequence, accepted, now) }
 
   cancel(reason = 'Gestures stopped'): PageGestureSnapshot {

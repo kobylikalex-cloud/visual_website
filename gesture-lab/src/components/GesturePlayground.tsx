@@ -6,6 +6,7 @@ import type { PageInteractionState } from '../control/PageGestureEngine'
 import './playground.css'
 
 export type GesturePlaygroundProps = {
+  spatialContent?: ReactNode
   cameraControls: ReactNode
   snapshot: InteractionSnapshot & { clickState?: ClickState; interactionState?: PageInteractionState }
   scrollTestPage?: boolean
@@ -38,7 +39,7 @@ function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d={diagonal ? 'M6 18 18 6M6 6h12v12' : 'M5 12h14m-6-6 6 6-6 6'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
 }
 
-export default function GesturePlayground({ cameraControls, snapshot, scrollTestPage = false, cardPosition, activations, buttonActivations, palette, onActivate, onManualDrag, scrollRef, arenaRef, children }: GesturePlaygroundProps) {
+export default function GesturePlayground({ cameraControls, snapshot, spatialContent, scrollTestPage = false, cardPosition, activations, buttonActivations, palette, onActivate, onManualDrag, scrollRef, arenaRef, children }: GesturePlaygroundProps) {
   const dragPoint = useRef<{ id: number; x: number; y: number } | null>(null)
   const [manualDragging, setManualDragging] = useState(false)
   const statusReason = snapshot.mode === 'IDLE' && snapshot.reason === 'Reset'
@@ -81,7 +82,7 @@ export default function GesturePlayground({ cameraControls, snapshot, scrollTest
     if (deltas[event.key]) { event.preventDefault(); onManualDrag(deltas[event.key]) }
   }
 
-  return <main className={`playground palette-${palette}`}>
+  return <main className={`playground palette-${palette}${spatialContent ? ' spatial-mode' : ''}`}>
     {(snapshot.interactionState === 'SCROLL_ENTRY' || snapshot.interactionState === 'SCROLL_ACTIVE') && <aside className="page-scroll-feedback" role="status" aria-live="polite">
       <span aria-hidden="true">{snapshot.scrollVelocity < 0 ? '↑' : snapshot.scrollVelocity > 0 ? '↓' : '↕'}</span>
       <div>{statusLabel}<small>{snapshot.interactionState === 'SCROLL_ENTRY' ? 'Move your flat hand up or down' : snapshot.scrollVelocity === 0 ? 'Move above or below this resting height' : 'Return to resting height to stop'}</small></div>
@@ -93,14 +94,14 @@ export default function GesturePlayground({ cameraControls, snapshot, scrollTest
           <span>gesture<span className="brand-light">lab</span><span className="brand-dot">.</span></span>
         </a>
         <div className="header-label"><span className="tiny-orbit" aria-hidden="true" /> An experiment in natural interaction</div>
-        <span className="edition">SPRINT / 03</span>
+        <span className="edition">SPRINT / {spatialContent ? '04' : '03'}</span>
       </header>
 
       <section className="playground-intro" id="playground" aria-labelledby="playground-title">
         <div className="intro-copy">
           <p className="eyebrow"><span /> BEYOND THE CURSOR</p>
-          <h1 id="playground-title">One hand.<br /><span>Steady focus.</span></h1>
-          <p className="intro-description">Raise one open hand. Move between the targets.<br className="desktop-break" /> Hold a complete fist to activate. Reopen to repeat.</p>
+          <h1 id="playground-title">{spatialContent ? <>A little room <span>in space.</span></> : <>One hand.<br /><span>Steady focus.</span></>}</h1>
+          <p className="intro-description">{spatialContent ? 'Open to focus · fist to grasp · move in X/Y/Z · open to release.' : <>Raise one open hand. Move between the targets.<br className="desktop-break" /> Hold a complete fist to activate. Reopen to repeat.</>}</p>
         </div>
         <aside className="session-panel" aria-label="Camera and interaction controls">
           <div className="session-heading"><span className="eyebrow">YOUR SESSION</span><span className="session-icon" aria-hidden="true">↗</span></div>
@@ -112,6 +113,7 @@ export default function GesturePlayground({ cameraControls, snapshot, scrollTest
         </aside>
       </section>
 
+      {spatialContent}
       <div className="gesture-primer" aria-label="Gesture quick guide">
         <div><span className="primer-symbol" aria-hidden="true">↗</span><p><strong>Open hand</strong><span>Aim at a control</span></p></div>
         <div><span className="primer-symbol primer-grasp" aria-hidden="true">◇</span><p><strong>Close to activate</strong><span>Hold a fist · reopen to repeat</span></p></div>

@@ -47,6 +47,12 @@ export class OpenPointerEngine {
     return result
   }
 
+  retainPointerGeometry(point: {x:number;y:number}, viewport: {width:number;height:number}): InteractionSnapshot {
+    const result=this.cancel('Spatial interaction released; confirm open palm')
+    this.pointer.retainPosition(point,viewport)
+    return result
+  }
+
   cancel(reason = 'Paused'): InteractionSnapshot {
     this.hand = null; this.frame = null; this.candidateSince = null; this.lastOpen = -Infinity
     this.lastTimestamp = -Infinity; this.pointer.reset(); this.selector.reset()

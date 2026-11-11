@@ -49,6 +49,14 @@ export class PointerController {
     this.adaptive?.reset()
   }
 
+  /** Explicit spatial-release handoff; unused by the accepted normal flow. */
+  retainPosition(point: Point2, viewport: {width:number;height:number}) {
+    if (![point.x,point.y,viewport.width,viewport.height].every(Number.isFinite) || viewport.width<=0 || viewport.height<=0) throw new RangeError('Invalid retained pointer geometry')
+    this.position={x:clamp(point.x/viewport.width),y:clamp(point.y/viewport.height)}
+    this.relativeTarget={...this.position};this.previousPalm=null;this.timestampMs=null
+    this.adaptive?.reset()
+  }
+
   project(center: Point2, viewport: { width: number; height: number }): Point2 {
     return {
       x: clamp(0.5 + this.config.pointerGain * ((1 - center.x - this.config.pointerMinX) / (this.config.pointerMaxX - this.config.pointerMinX) - 0.5)) * viewport.width,

@@ -63,6 +63,13 @@ export class FistClickEngine {
     return this.snapshot = this.wrap(result)
   }
 
+  retainPointerGeometry(point: Point2, viewport: {width:number;height:number}): ClickSnapshot {
+    this.cancel('Spatial interaction released')
+    const result=this.pointer.retainPointerGeometry(point,viewport)
+    this.diagnostics={...this.pointer.diagnostics}
+    return this.snapshot=this.wrap(result)
+  }
+
   update(frame: InteractionFrame, receivedAt: number): ClickSnapshot {
     const time = frame.timestampMs, hand = frame.hands[0]
     if (!Number.isFinite(time) || !Number.isFinite(receivedAt) || time < 0 || receivedAt < time || receivedAt - time > this.config.freshnessMs ||

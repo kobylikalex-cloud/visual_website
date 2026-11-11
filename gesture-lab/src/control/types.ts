@@ -4,7 +4,7 @@ import type { HandOrientation, HandOrientationMetrics } from '../gestures/HandOr
 
 export type Point2 = { x: number; y: number }
 export type Detection = { landmarks: Point3D[]; worldLandmarks: Point3D[]; handedness?: string }
-export type TrackingFrame = { timestampMs: number; detections: Detection[]; evaluationOnly?: boolean }
+export type TrackingFrame = { timestampMs: number; detections: Detection[]; evaluationOnly?: boolean; imageSize?: {width:number;height:number} }
 export type TrackedHand = {
   id: number
   center: Point2

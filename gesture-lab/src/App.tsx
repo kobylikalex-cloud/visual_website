@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import CameraManager from './components/CameraManager'
 import GesturePlayground from './components/GesturePlayground'
 import PointerDebug from './components/PointerDebug'
@@ -14,8 +14,9 @@ import { calibratePointer, constrainCardPosition } from './control/MovementCalib
 import type { Point2, TrackedHand, TrackingFrame } from './control/types'
 import type { PerformanceReport } from './tracking/TrackingPerformance'
 import type { BenchmarkReport } from './tracking/protocol'
+import type {SpatialControlBridge} from './spatial/SpatialControlBridge'
 
-export default function App() {
+export default function App({spatial,spatialContent}:{spatial?:SpatialControlBridge;spatialContent?:ReactNode}={}) {
   const arenaRef = useRef<HTMLDivElement>(null), scrollRef = useRef<HTMLDivElement>(null)
   const [cardPosition, setCardPosition] = useState<Point2>({ x: 0, y: 0 })
   const [activations, setActivations] = useState(0)
@@ -76,12 +77,13 @@ export default function App() {
     setCardPosition(previous => constrainCardPosition(previous, delta, bounds, cardBounds))
   }, [])
   const cancel = useCallback(() => {
+    const handoff=spatial?.cancel()
     tracker.reset(); lastHandRef.current = null
-    latestRef.current = engine.cancel('Tracking stopped; raise an open hand')
+    latestRef.current = handoff?engine.retainPointerGeometry(handoff.point,handoff.viewport):engine.cancel('Tracking stopped; raise an open hand')
     feedbackLatency.cancel(); scrollFeedback.cancel(); pageScroll.clear(); lastCaptureRef.current = null
     measurementRef.current.observe(latestRef.current, false, performance.now())
     setSnapshot(latestRef.current)
-  }, [engine, tracker, feedbackLatency, scrollFeedback, pageScroll])
+  }, [engine, tracker, feedbackLatency, scrollFeedback, pageScroll, spatial])
 
   const handleFrame = useCallback((frame: TrackingFrame) => {
     if (document.hidden || !document.hasFocus() || pausedRef.current || frame.evaluationOnly) { cancel(); return }
@@ -89,8 +91,17 @@ export default function App() {
     const tracking = tracker.update(frame)
     lastCaptureRef.current = frame.timestampMs
     lastHandRef.current = tracking.hands.length === 1 && !tracking.ambiguous ? tracking.hands[0] : null
-    latestRef.current = engine.update({ ...tracking, timestampMs: frame.timestampMs, targets,
-      viewport: { width: window.innerWidth, height: window.innerHeight } }, performance.now())
+    const interactionFrame={ ...tracking, timestampMs: frame.timestampMs, targets,viewport: { width: window.innerWidth, height: window.innerHeight } }
+    const now=performance.now(),route=spatial?.beforeFrame(frame,interactionFrame,now)
+    if(route?.handoff)latestRef.current=engine.retainPointerGeometry(route.handoff.point,route.handoff.viewport)
+    if(route?.consumed){
+      if(!route.handoff)latestRef.current=engine.cancel('Spatial manipulation owns input')
+      feedbackLatency.cancel();scrollFeedback.cancel();pageScroll.stop()
+      measurementRef.current.observe(latestRef.current,false,now,true)
+      return
+    }
+    latestRef.current = engine.update(interactionFrame,now)
+    if(!route?.processed)spatial?.afterFrame(frame,interactionFrame,latestRef.current,engine.diagnostics.confirmed,performance.now())
     const request = latestRef.current.activation
     if (request) {
       const freshAndActive = !document.hidden && document.hasFocus() && !pausedRef.current && performance.now() - frame.timestampMs <= config.freshnessMs
@@ -102,7 +113,7 @@ export default function App() {
     else feedbackLatency.cancel()
     if (latestRef.current.scrollVelocity !== 0) scrollFeedback.submitted(frame.timestampMs)
     else scrollFeedback.cancel()
-  }, [engine, tracker, registry, cancel, feedbackLatency, scrollFeedback, config.freshnessMs])
+  }, [engine, tracker, registry, cancel, feedbackLatency, scrollFeedback, config.freshnessMs, spatial, pageScroll])
 
   useEffect(() => {
     let animation = 0
@@ -110,6 +121,8 @@ export default function App() {
       // Use current time: the RAF timestamp can predate a synchronous fallback
       // inference completed earlier in the same animation callback batch.
       const now = performance.now()
+      const handoff=spatial?.tick(now)
+      if(handoff)latestRef.current=engine.retainPointerGeometry(handoff.point,handoff.viewport)
       const next = engine.tick(now, engine.clickDiagnostics.targetLocked ? collectTargets(registry, engine.clickDiagnostics.lockedTargetId!) : undefined); latestRef.current = next
       if (next.scrollDeltaY !== 0 && lastCaptureRef.current !== null && !document.hidden && document.hasFocus() && !pausedRef.current) {
         const applied = pageScroll.apply(next.scrollDeltaY, performance.now(), lastCaptureRef.current)
@@ -157,9 +170,9 @@ export default function App() {
       window.removeEventListener('blur', cancel); window.removeEventListener('resize', cancel); window.removeEventListener('scroll', scrolled, true)
       window.removeEventListener('wheel', cancel); window.removeEventListener('touchstart', touched); pageScroll.clear(); engine.cancel()
     }
-  }, [engine, registry, cancel, feedbackLatency, scrollFeedback, pageScroll])
+  }, [engine, registry, cancel, feedbackLatency, scrollFeedback, pageScroll, spatial])
 
-  function applyConfig(next: GestureConfig) { setConfig(next); latestRef.current = engine.configure(next); setSnapshot(latestRef.current) }
+  function applyConfig(next: GestureConfig) { spatial?.configure(next); setConfig(next); latestRef.current = engine.configure(next); setSnapshot(latestRef.current) }
   function centerPointer() {
     const hand = lastHandRef.current
     if (!hand || hand.pose !== 'OPEN' || performance.now() - hand.timestampMs > config.freshnessMs) {
@@ -172,10 +185,11 @@ export default function App() {
   }
 
   return <GesturePlayground
+    spatialContent={spatialContent}
     scrollTestPage={window.location.pathname === '/scroll-test'}
     cameraControls={<>
-      <CameraManager pointerStatus={`${debugView.click.pose} · ${debugView.snapshot.interactionState} · ID ${debugView.diagnostics.handId ?? '—'} · ${debugView.snapshot.focusId ?? 'no target'}`} onPerformance={(report, usedBackend, comparison) => { setPerf(report); setBackend(usedBackend); setBenchmark(comparison) }} onFrame={handleFrame} onInactive={cancel}
-        onDebugChange={enabled => { cancel(); engine.setDebugTrace(enabled); debugRef.current = enabled; setDebugEnabled(enabled); if (!enabled) { latestRef.current = engine.setAutomaticScroll(true); setAutomaticScroll(true) } }} />
+      <CameraManager pointerStatus={`${debugView.click.pose} · ${debugView.snapshot.interactionState} · ID ${debugView.diagnostics.handId ?? '—'} · ${debugView.snapshot.focusId ?? 'no target'}`} onPerformance={(report, usedBackend, comparison) => { spatial?.setPerformance(report,usedBackend); setPerf(report); setBackend(usedBackend); setBenchmark(comparison) }} onFrame={handleFrame} onInactive={cancel}
+        onDebugChange={enabled => { cancel(); spatial?.setDebug(enabled); engine.setDebugTrace(enabled); debugRef.current = enabled; setDebugEnabled(enabled); if (!enabled) { latestRef.current = engine.setAutomaticScroll(true); setAutomaticScroll(true) } }} />
       <button className="pause-gestures" onClick={() => { pausedRef.current = !paused; setPaused(!paused); cancel() }}>{paused ? 'Resume pointer' : 'Pause pointer'}</button>
     </>}
     snapshot={snapshot} cardPosition={cardPosition} activations={activations} buttonActivations={buttonActivations} palette={palette}

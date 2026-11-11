@@ -251,6 +251,7 @@ export default function CameraManager({ onFrame, onInactive, onDebugChange, onPe
 
         callbacksRef.current.onFrame?.({
           timestampMs: now,
+          imageSize: {width:video.videoWidth,height:video.videoHeight},
           evaluationOnly: isEvaluationFrame(evaluation.recording, benchmarkingRef.current, recognitionModelRef.current),
           detections: result.landmarks.map((landmarks, index) => ({
             landmarks,
