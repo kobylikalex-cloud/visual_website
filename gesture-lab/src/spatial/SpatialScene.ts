@@ -9,15 +9,25 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js'
 import type {Point2} from '../control/types.ts'
 import type {CanvasRect,SpatialBounds,SpatialHit,SpatialScenePort,SpatialSnapshot,SpatialState,Vec3} from './types.ts'
 import {nextSpatialRenderTime} from './SpatialRenderClock.ts'
+import {SpatialAppearance} from './SpatialAppearance.ts'
 
 export function pointerToNdc(pointer:Point2,rect:CanvasRect):Point2|null {
   if (![pointer.x,pointer.y,rect.left,rect.top,rect.width,rect.height].every(Number.isFinite)||rect.width<=0||rect.height<=0) return null
   return {x:((pointer.x-rect.left)/rect.width)*2-1,y:1-((pointer.y-rect.top)/rect.height)*2}
 }
 
+/** A longer lens gives the actual target more of the frame without changing its
+ * geometry. Widen portrait framing so the same target still has room to move.
+ * Keep the optical axis on world -Z: grip planes and keyboard axes depend on it. */
+export function spatialCameraFov(aspect:number):number {
+  const safeAspect=Number.isFinite(aspect)&&aspect>0?aspect:1
+  return 2*Math.atan(Math.tan(8*Math.PI/180)*Math.max(1,1.5/safeAspect))*180/Math.PI
+}
+
 export function createSpatialCamera(aspect:number):PerspectiveCamera {
-  const camera=new PerspectiveCamera(42,Number.isFinite(aspect)&&aspect>0?aspect:1,.1,60)
-  camera.position.set(0,0,7)
+  const safeAspect=Number.isFinite(aspect)&&aspect>0?aspect:1
+  const camera=new PerspectiveCamera(spatialCameraFov(safeAspect),safeAspect,.1,60)
+  camera.position.set(0,0,12)
   camera.lookAt(0,0,0)
   camera.updateMatrixWorld(true)
   return camera
@@ -89,15 +99,17 @@ export class SpatialSceneController implements SpatialScenePort {
   private readonly camera=createSpatialCamera(1)
   private readonly geometry=new BoxGeometry(1.2,1.2,1.2)
   private readonly material=new MeshPhysicalMaterial({
-    color:0x43828b,metalness:.55,roughness:.21,clearcoat:1,clearcoatRoughness:.13,
-    transmission:.08,thickness:.65,ior:1.45,envMapIntensity:1.3,
-    emissive:0x123b42,emissiveIntensity:.03,
+    color:0x255b76,metalness:.08,roughness:.12,clearcoat:1,clearcoatRoughness:.08,
+    transmission:0,transparent:true,opacity:.10,depthWrite:false,
+    thickness:.65,ior:1.45,envMapIntensity:.32,
+    emissive:0x185571,emissiveIntensity:.03,
   })
   private readonly cube=new Mesh(this.geometry,this.material)
   private readonly edges=new LineSegments(new EdgesGeometry(this.geometry),new LineBasicMaterial({color:0x9bcbd0,transparent:true,opacity:.3}))
   private readonly grid=new GridHelper(12,24,0x48646b,0x273a42)
   private readonly keyLight=new DirectionalLight(0xd9f4f4,3)
   private readonly environment:WebGLRenderTarget
+  private readonly appearance:SpatialAppearance
   private disposed=false
   private feedback:SpatialState='IDLE'
   private nativeHover=false
@@ -129,10 +141,12 @@ export class SpatialSceneController implements SpatialScenePort {
     this.cube.name='spatial-cube'
     this.cube.add(this.edges)
     this.scene.add(this.cube)
+    this.appearance=new SpatialAppearance(this.cube,this.environment.texture)
+    this.scene.add(this.appearance.stage)
     this.keyLight.position.set(-3,4,5)
-    const fill=new DirectionalLight(0x72bbc9,2)
+    const fill=new DirectionalLight(0x72dfe9,2)
     fill.position.set(4,1,-2)
-    const warm=new DirectionalLight(0xf2d5b3,.7)
+    const warm=new DirectionalLight(0xbb8bff,1.4)
     warm.position.set(1,4,2)
     this.scene.add(this.keyLight,fill,warm,new HemisphereLight(0xc5e4eb,0x14242d,1.1))
     this.grid.position.y=-2.3
@@ -185,6 +199,7 @@ export class SpatialSceneController implements SpatialScenePort {
     this.renderer.setPixelRatio(dpr)
     this.renderer.setSize(rect.width,rect.height,false)
     this.camera.aspect=rect.width/rect.height
+    this.camera.fov=spatialCameraFov(this.camera.aspect)
     this.camera.updateProjectionMatrix()
     const visible=visibleSpatialBounds(this.camera,{min:{x:-2.6,y:-1.6,z:-1.5},max:{x:2.6,y:1.6,z:1.8}})
     this.bounds.min=visible.min;this.bounds.max=visible.max
@@ -210,6 +225,7 @@ export class SpatialSceneController implements SpatialScenePort {
     this.edges.material.color.setHex(grabbed?0xd2f8f2:pending?0xdfcba5:focused?0x93e0e4:0x9bcbd0)
     this.edges.material.opacity=grabbed?.95:focused?.76:.3
     this.material.emissiveIntensity=grabbed?.12:focused?.075:.03
+    this.appearance.setState(this.nativeHover&&this.feedback==='IDLE'?'TARGET_FOCUSED':this.feedback)
   }
 
   setDebug(enabled:boolean):void { if (!this.disposed) this.grid.visible=enabled }
@@ -246,6 +262,7 @@ export class SpatialSceneController implements SpatialScenePort {
     if (this.disposed) return
     this.getRect()
     this.disposed=true
+    this.appearance.dispose()
     this.geometry.dispose()
     this.material.dispose()
     this.edges.geometry.dispose()

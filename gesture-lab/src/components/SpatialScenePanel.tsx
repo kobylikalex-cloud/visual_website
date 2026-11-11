@@ -164,7 +164,7 @@ export function SpatialScenePanel({onReady,debugEnabled=false,state=null,onReset
     sceneRef.current?.setFeedback(feedback.current)
   }
 
-  return <section className="spatial-scene-panel" aria-label="Interactive spatial scene">
+  return <section className="spatial-scene-panel" data-visual-state={state?.state??'IDLE'} aria-label="Interactive spatial scene">
     <div className="spatial-scene-heading">
       <span><i aria-hidden="true"/>{labels[state?.state??'IDLE']}</span>
       {onReset&&<button type="button" onClick={onReset}>Reset position <span aria-hidden="true">↺</span></button>}
@@ -178,8 +178,15 @@ export function SpatialScenePanel({onReady,debugEnabled=false,state=null,onReset
         onPointerLeave={()=>sceneRef.current?.setNativeHover(false)}
         onKeyDown={keyboardMove} onKeyUp={endKeyboard} onBlur={blurCanvas}/>
       <p ref={errorRef} className="spatial-scene-error" role="status" hidden/>
-      <span className="spatial-scene-axis" aria-hidden="true">Y ↑<br/>X →<br/><span>Z toward you</span></span>
-      <div className="spatial-scene-readout"><span>OBJECT 01</span><output ref={positionRef} aria-label="Cube position" aria-live="off">X 0.00   Y 0.00   Z 0.00</output></div>
+      <div className="spatial-scene-axis" aria-hidden="true">
+        <span className="spatial-hud-caption">SPATIAL CONTROLS</span>
+        <span className="spatial-axis-row"><b>X</b> Left / right</span>
+        <span className="spatial-axis-row"><b>Y</b> Up / down</span>
+        <span className="spatial-axis-row"><b>Z</b> Near / far</span>
+        <small>GRASP · MOVE · RELEASE</small>
+      </div>
+      <div className="spatial-floor-label" aria-hidden="true">INTERACTION VOLUME <span>01</span></div>
+      <div className="spatial-scene-readout"><span className="spatial-hud-caption"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 2 9 5v10l-9 5-9-5V7l9-5Zm0 10L3 7m9 5 9-5m-9 5v10" stroke="currentColor" strokeWidth="1.3"/></svg>OBJECT 01</span><small className="spatial-object-type">TRANSLATION / X · Y · Z</small><output ref={positionRef} aria-label="Cube position" aria-live="off">X 0.00   Y 0.00   Z 0.00</output></div>
     </div>
     <div className="spatial-scene-footer">
       <p id={instructionId}>Drag to move · Arrow keys for X/Y · Page Up / Down for depth</p>
