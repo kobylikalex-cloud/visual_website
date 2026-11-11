@@ -12,7 +12,7 @@ const output='../review/visual'
 await mkdir(output,{recursive:true})
 const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host','127.0.0.1','--port','4173','--strictPort'],{stdio:'ignore'})
 let browser
-const report={checks:[],errors:[],note:'Native input and software-rendered WebGL checks only. No webcam accuracy or hardware FPS claim.'}
+const report={checks:[],errors:[],timings:{},note:'Native input and software-rendered WebGL checks only. No webcam accuracy or hardware FPS claim.'}
 try {
   let ready=false
   for(let i=0;i<80;i++) {
@@ -45,9 +45,14 @@ try {
   await page.keyboard.press('ArrowRight')
   await page.waitForTimeout(500)
   assert.notEqual(await readout.textContent(),dragged,'keyboard X/Z motion remains available')
+  const resetStarted=Date.now()
   await page.getByRole('button',{name:/Reset position/}).click()
-  await page.waitForTimeout(500)
+  // Coordinates are published by the existing RAF loop at most once per 300ms.
+  // SwiftShader scheduling is not a client hardware latency benchmark. Await the
+  // exact original coordinates with a finite timeout, never weaken the assertion.
+  await page.waitForFunction(expected=>globalThis.document.querySelector('[aria-label="Cube position"]')?.textContent===expected,before,{timeout:5000,polling:100})
   assert.equal(await readout.textContent(),before,'reset restores original position')
+  report.timings.resetReadoutIncludingAutomationMs=Date.now()-resetStarted
   report.checks.push('mouse drag, keyboard translation and reset pass')
   await page.getByRole('button',{name:'Debug: OFF',exact:true}).click()
   await page.getByRole('button',{name:'Debug: ON',exact:true}).waitFor()
