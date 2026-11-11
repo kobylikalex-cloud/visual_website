@@ -109,13 +109,13 @@ export class SpatialAppearance {
           gl_FragColor=vec4(c,1.0);${outputColor}
         }`,
     }))
-    const base=this.mesh(new CylinderGeometry(3.25,3.38,.14,96),metal);base.position.set(0,-2.67,-1.5);this.stage.add(base)
-    const top=this.mesh(new CylinderGeometry(3.17,3.25,.10,96),platform);top.position.set(0,-2.55,-1.5);this.stage.add(top)
-    const rings=[2.55,2.93,3.16].map(r=>{const g=new RingGeometry(r-.009,r+.009,128);g.rotateX(-Math.PI/2);g.translate(0,-2.493,-1.5);return g})
+    const base=this.mesh(new CylinderGeometry(3.25,3.38,.14,96),metal);base.position.set(0,-1.69,-1.5);this.stage.add(base)
+    const top=this.mesh(new CylinderGeometry(3.17,3.25,.10,96),platform);top.position.set(0,-1.57,-1.5);this.stage.add(top)
+    const rings=[2.55,2.93,3.16].map(r=>{const g=new RingGeometry(r-.009,r+.009,128);g.rotateX(-Math.PI/2);g.translate(0,-1.513,-1.5);return g})
     this.stage.add(this.mesh(this.join(rings),this.ringMaterial))
     for(const [color,offset] of [['#5be6fa',.15],['#bd8bff',Math.PI+.15]] as const){
       const material=this.ownMaterial(new MeshBasicMaterial({color,transparent:true,opacity:.93,side:DoubleSide,depthWrite:false,blending:AdditiveBlending,toneMapped:false}))
-      const sections=[0,1.1,2.1].map(a=>{const g=new RingGeometry(3.17,3.21,24,1,offset+a,.24);g.rotateX(-Math.PI/2);g.translate(0,-2.485,-1.5);return g})
+      const sections=[0,1.1,2.1].map(a=>{const g=new RingGeometry(3.17,3.21,24,1,offset+a,.24);g.rotateX(-Math.PI/2);g.translate(0,-1.505,-1.5);return g})
       this.stage.add(this.mesh(this.join(sections),material))
     }
     const floor=this.ownMaterial(new ShaderMaterial({
@@ -131,7 +131,7 @@ export class SpatialAppearance {
           gl_FragColor=vec4(c,fade);${outputColor}
         }`,
     }))
-    const ground=this.mesh(new PlaneGeometry(38,34),floor);ground.rotation.x=-Math.PI/2;ground.position.set(0,-2.78,-1);this.stage.add(ground)
+    const ground=this.mesh(new PlaneGeometry(38,34),floor);ground.rotation.x=-Math.PI/2;ground.position.set(0,-1.80,-1);this.stage.add(ground)
     const pool=this.ownMaterial(new ShaderMaterial({
       transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,toneMapped:false,vertexShader:planeVertex,
       fragmentShader:`varying vec2 vUv;varying vec3 vPoint;
@@ -140,7 +140,7 @@ export class SpatialAppearance {
           gl_FragColor=vec4(c,falloff*.34);${outputColor}
         }`,
     }))
-    const lightPool=this.mesh(new PlaneGeometry(6.3,6.3),pool);lightPool.rotation.x=-Math.PI/2;lightPool.position.set(0,-2.48,-1.5);this.stage.add(lightPool)
+    const lightPool=this.mesh(new PlaneGeometry(6.3,6.3),pool);lightPool.rotation.x=-Math.PI/2;lightPool.position.set(0,-1.50,-1.5);this.stage.add(lightPool)
 
     // Filled, bevelled architectural wings rather than floating wire brackets.
     const ribs:[Vector3,Vector3][]=[],walls:BufferGeometry[]=[]
