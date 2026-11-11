@@ -4,6 +4,7 @@ import type { InteractionSnapshot } from '../control/types'
 import type { ClickState } from '../control/FistClickEngine'
 import type { PageInteractionState } from '../control/PageGestureEngine'
 import './playground.css'
+import './cinematic.css'
 
 export type GesturePlaygroundProps = {
   spatialContent?: ReactNode
@@ -93,7 +94,8 @@ export default function GesturePlayground({ cameraControls, snapshot, spatialCon
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
           <span>gesture<span className="brand-light">lab</span><span className="brand-dot">.</span></span>
         </a>
-        <div className="header-label"><span className="tiny-orbit" aria-hidden="true" /> An experiment in natural interaction</div>
+        {spatialContent && <span className="cinematic-context"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 2 9 5v10l-9 5-9-5V7l9-5Zm0 10L3 7m9 5 9-5m-9 5v10" stroke="currentColor" strokeWidth="1.4"/></svg>Spatial Lab</span>}
+        <div className="header-label"><span className="tiny-orbit" aria-hidden="true" /> {spatialContent ? 'GESTURE-CONTROLLED 3D INTERACTION' : 'An experiment in natural interaction'}</div>
         <span className="edition">SPRINT / {spatialContent ? '04' : '03'}</span>
       </header>
 
@@ -101,7 +103,10 @@ export default function GesturePlayground({ cameraControls, snapshot, spatialCon
         <div className="intro-copy">
           <p className="eyebrow"><span /> BEYOND THE CURSOR</p>
           <h1 id="playground-title">{spatialContent ? <>A little room <span>in space.</span></> : <>One hand.<br /><span>Steady focus.</span></>}</h1>
-          <p className="intro-description">{spatialContent ? 'Open to focus · fist to grasp · move in X/Y/Z · open to release.' : <>Raise one open hand. Move between the targets.<br className="desktop-break" /> Hold a complete fist to activate. Reopen to repeat.</>}</p>
+          <p className="intro-description">{spatialContent ? 'A little less interface. A whole new dimension of control.' : <>Raise one open hand. Move between the targets.<br className="desktop-break" /> Hold a complete fist to activate. Reopen to repeat.</>}</p>
+          {spatialContent && <div className="cinematic-sequence" aria-label="Spatial gesture sequence">
+            <span><i aria-hidden="true">◎</i> Open to focus</span><span><i aria-hidden="true">◇</i> Fist to grasp</span><span><i aria-hidden="true">✣</i> Move in X/Y/Z</span><span><i aria-hidden="true">↗</i> Open to release</span>
+          </div>}
         </div>
         <aside className="session-panel" aria-label="Camera and interaction controls">
           <div className="session-heading"><span className="eyebrow">YOUR SESSION</span><span className="session-icon" aria-hidden="true">↗</span></div>
