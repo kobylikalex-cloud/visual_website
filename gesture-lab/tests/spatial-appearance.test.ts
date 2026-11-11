@@ -74,3 +74,30 @@ test('visual resources dispose once without disposing the controller-owned targe
   assert.equal(cube.children.length,0)
   cube.geometry.dispose();cube.material.dispose()
 })
+
+test('glass treatment has a closed, bevelled shell inside the original hit envelope', () => {
+  const cube=fixture(), appearance=new SpatialAppearance(cube)
+  const shell=cube.getObjectByName('optical-glass-shell')
+  assert.ok(shell instanceof Mesh,'a filled optical shell, not only light rails')
+  shell.geometry.computeBoundingBox()
+  const bounds=shell.geometry.boundingBox!
+  for(const axis of ['x','y','z'] as const) {
+    assert.ok(bounds.max[axis]<=.601 && bounds.min[axis]>=-.601, 'glass never enlarges the hit envelope')
+  }
+  assert.ok(shell.geometry.getAttribute('normal').count>36,'bevels need actual surface normals')
+  appearance.dispose();cube.geometry.dispose();cube.material.dispose()
+})
+
+test('room architecture is made of filled non-pickable surfaces within a finite geometry budget', () => {
+  const cube=fixture(), appearance=new SpatialAppearance(cube)
+  const walls=appearance.stage.getObjectByName('architectural-shell')
+  assert.ok(walls instanceof Mesh,'filled side walls replace the freestanding line brackets')
+  let vertices=0
+  for(const root of [appearance.stage,...cube.children]) root.traverse(object=>{
+    if(object instanceof Mesh)vertices+=object.geometry.getAttribute('position').count
+  })
+  assert.ok(vertices<40000,'keep GPU geometry bounded; no volumetric simulation')
+  const raycaster=new Raycaster();raycaster.setFromCamera(new Vector2(0,0),createSpatialCamera(1.6))
+  assert.equal(raycaster.intersectObject(walls,true).length,0)
+  appearance.dispose();cube.geometry.dispose();cube.material.dispose()
+})
