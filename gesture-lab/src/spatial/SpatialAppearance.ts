@@ -12,7 +12,8 @@ const CYAN=new Color('#54e9fa'), VIOLET=new Color('#b989ff')
 const noPicking=()=>undefined
 const planeVertex=`varying vec2 vUv; varying vec3 vPoint;
 void main(){vUv=uv;vPoint=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`
-const outputColor=`#include <tonemapping_fragment>
+const outputColor=`
+#include <tonemapping_fragment>
 #include <colorspace_fragment>`
 
 /** Visual-only optics. Owns no controls, camera, target transform or render clock.
