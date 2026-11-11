@@ -5,7 +5,7 @@ on:
     branches: [design/spatial-lab-cinematic]
     paths:
       - '.github/workflows/spatial-visual-review.yml'
-      - 'gesture-lab/tests/visual-browser.mjs'
+      - 'gesture-lab/**'
   pull_request:
     paths:
       - 'gesture-lab/**'
@@ -54,6 +54,15 @@ jobs:
       - name: Lint
         working-directory: gesture-lab
         run: npm run lint
+      - name: Install browser review tools outside application
+        run: |
+          npm install --prefix "$RUNNER_TEMP/gesture-review-tools" playwright@1.56.1
+          node "$RUNNER_TEMP/gesture-review-tools/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Browser review
+        working-directory: gesture-lab
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/gesture-review-tools/node_modules/playwright/index.mjs
+        run: node tests/visual-browser.mjs
       - name: Prepare local review snapshot
         if: always()
         run: |
