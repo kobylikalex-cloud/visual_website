@@ -22,6 +22,15 @@ try {
   assert.ok(ready,'preview server starts')
   browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']})
   const page=await browser.newPage({viewport:{width:1600,height:1000},deviceScaleFactor:1})
+  const assertDebugPreviewVisible=async()=>{
+    const visible=await page.locator('.camera-manager[data-debug="true"] > div').first().evaluate(preview=>{
+      const rect=preview.getBoundingClientRect()
+      if(rect.width<=0||rect.height<=0||rect.left<0||rect.top<0||rect.right>globalThis.innerWidth||rect.bottom>globalThis.innerHeight)return false
+      return [.15,.5,.85].every(x=>[.15,.5,.85].every(y=>
+        preview.contains(globalThis.document.elementFromPoint(rect.left+rect.width*x,rect.top+rect.height*y))))
+    })
+    assert.ok(visible,'debug camera preview stays fully on screen and above overlapping content')
+  }
   page.on('pageerror',error=>report.errors.push(String(error)))
   page.on('console',message=>{if(message.type()==='error')report.errors.push(message.text())})
   await page.goto('http://127.0.0.1:4173/spatial-lab',{waitUntil:'networkidle'})
@@ -73,9 +82,14 @@ try {
   report.checks.push('off-center grab has no jump, preserves offset and leaves Z unchanged')
   await page.getByRole('button',{name:'Debug: OFF',exact:true}).click()
   await page.getByRole('button',{name:'Debug: ON',exact:true}).waitFor()
+  await assertDebugPreviewVisible()
   await page.screenshot({path:output+'/cinematic-debug.png',fullPage:true})
+  await page.locator('.spatial-scene-canvas').scrollIntoViewIfNeeded()
+  await assertDebugPreviewVisible()
+  await page.screenshot({path:output+'/cinematic-debug-overlay.png'})
   await page.getByRole('button',{name:'Debug: ON',exact:true}).click()
-  report.checks.push('debug toggles without starting camera')
+  assert.equal(await page.locator('.camera-manager > div').first().isVisible(),false,'debug off hides the camera preview')
+  report.checks.push('debug preview stays above scene before and after scrolling; debug off hides it without starting camera')
   for(const width of [1280,1024,768,390]) {
     await page.setViewportSize({width,height:900})
     await page.waitForTimeout(250)
@@ -84,7 +98,16 @@ try {
       const stage=globalThis.document.querySelector('.spatial-scene-canvas').getBoundingClientRect()
       return {width:globalThis.innerWidth,canvasWidth:stage.width,canvasHeight:stage.height}
     }))
-    if(width===390)await page.screenshot({path:output+'/cinematic-mobile.png',fullPage:true})
+    if(width===390){
+      await page.screenshot({path:output+'/cinematic-mobile.png',fullPage:true})
+      await page.getByRole('button',{name:'Debug: OFF',exact:true}).click()
+      await page.locator('.spatial-scene-canvas').scrollIntoViewIfNeeded()
+      await assertDebugPreviewVisible()
+      await page.screenshot({path:output+'/cinematic-debug-mobile.png'})
+      await page.getByRole('button',{name:'Debug: ON',exact:true}).click()
+      assert.equal(await page.locator('.camera-manager > div').first().isVisible(),false,'mobile debug off hides the camera preview')
+      report.checks.push('mobile debug preview remains unobscured and hides when disabled')
+    }
   }
   report.checks.push('no horizontal overflow at 1280/1024/768/390px')
   await page.setViewportSize({width:1600,height:1000})

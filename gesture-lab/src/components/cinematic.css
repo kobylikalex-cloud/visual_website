@@ -17,6 +17,8 @@
 .playground.spatial-mode .header-label .tiny-orbit { display: none; }
 .playground.spatial-mode .edition { padding: 8px 12px; border: 1px solid #74b0bf2b; border-radius: 50px; letter-spacing: 1.5px; color: #a9bfcd; background: #0c182170; }
 .playground.spatial-mode .playground-intro { position: relative; isolation: isolate; padding: 22px 0 20px; grid-template-columns: minmax(0,1.14fr) minmax(0,1fr); gap: 36px; }
+/* The fixed camera preview must escape the scene's canvas and HUD layers. */
+.playground.spatial-mode .playground-intro:has(.camera-manager[data-debug="true"]) { z-index: 3; }
 .playground.spatial-mode .playground-intro::before { content: ''; pointer-events: none; position: absolute; z-index: -1; width: min(46vw,640px); height: 220px; left: 27%; top: -10px; border-radius: 50% 50% 0 0; opacity: .42; background: radial-gradient(ellipse at 50% 100%, #09131c 35%, #102c3a 63%, #2f687b 66%, #6fc5df66 67%, #151d31 69%, transparent 72%); mask-image: linear-gradient(#000 10%, transparent 88%); }
 .playground.spatial-mode .intro-copy { padding-left: 20px; border-left: 2px solid #6be8ed70; min-width: 0; }
 .playground.spatial-mode .intro-copy > .eyebrow { display: none; }
